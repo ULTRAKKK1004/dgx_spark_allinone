@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DGX Spark AI Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        :root {
+            --brand-primary: #10b981; /* Emerald */
+            --brand-secondary: #f59e0b; /* Amber/Gold */
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --border-muted: rgba(255, 255, 255, 0.08);
+        }
+        body { font-family: 'Outfit', sans-serif; background-color: var(--bg-dark); color: #f1f5f9; }
+        .glass { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(20px); border: 1px solid var(--border-muted); }
+        .emerald-gradient { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .gold-gradient { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .text-gradient { background: linear-gradient(135deg, #10b981 0%, #f59e0b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .tab-active { color: var(--brand-primary); border-bottom: 2px solid var(--brand-primary); }
+        .card-neo { background: #1e293b; border: 1px solid var(--border-muted); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); transition: all 0.3s ease; }
+        .card-neo:hover { border-color: rgba(16, 185, 129, 0.4); transform: translateY(-3px); }
+        input, textarea { background: #0f172a !important; border: 1px solid rgba(255,255,255,0.1) !important; color: #f1f5f9 !important; }
+        input:focus, textarea:focus { border-color: var(--brand-primary) !important; ring: 0 !important; }
+        .btn-emerald { background: var(--brand-primary); transition: all 0.2s; }
+        .btn-emerald:hover { background: #059669; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
+        .btn-gold { background: var(--brand-secondary); transition: all 0.2s; }
+        .btn-gold:hover { background: #d97706; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="glass sticky top-0 z-50 px-8 py-4 flex justify-between items-center border-b border-white/5">
+        <div class="flex items-center space-x-4">
+            <div class="emerald-gradient p-2.5 rounded-xl shadow-lg">
+                <i class="fas fa-microchip text-white text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-gradient">DGX Spark Hub</h1>
+                <p class="text-[10px] text-emerald-500 uppercase tracking-[0.2em] font-bold">Advanced AI Infrastructure</p>
+            </div>
+        </div>
+        <nav class="flex items-center space-x-8 text-sm font-semibold">
+            <button onclick="showTab('studio')" class="nav-btn tab-active py-1">Studio</button>
+            <button onclick="showTab('api')" class="nav-btn text-slate-400 hover:text-white transition py-1">API Keys</button>
+            <a href="/lecture/" class="px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition flex items-center space-x-2">
+                <i class="fas fa-video text-emerald-500"></i>
+                <span>Lecture Studio</span>
+            </a>
+        </nav>
+    </header>
+
+    <main class="flex-grow container mx-auto px-6 py-10">
+        <!-- Studio View -->
+        <div id="tab-studio" class="space-y-10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Chat Card -->
+                <div class="card-neo rounded-3xl p-7 space-y-5">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                <i class="fas fa-comment-dots text-emerald-500"></i>
+                            </div>
+                            <h2 class="text-xl font-bold">Gemma-4-26B (MoE) Studio</h2>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase">vLLM / Gemma-4-26B (MoE) (NVFP4)</span>
+                    </div>
+                    <textarea id="llmPrompt" rows="4" class="w-full rounded-2xl p-5 outline-none resize-none placeholder-slate-500" placeholder="Ask Gemma-4-26B (MoE) anything..."></textarea>
+                    <button id="btnLlm" onclick="runLLM()" class="w-full py-4 btn-emerald text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-3">
+                        <span>Execute Prompt</span>
+                        <i class="fas fa-bolt-lightning text-sm"></i>
+                    </button>
+                    <div id="llmLoading" class="hidden text-center text-emerald-400"><i class="fas fa-spinner fa-spin"></i> Processing local inference...</div>
+                    <div id="llmResult" class="bg-slate-950/50 rounded-2xl p-5 min-h-[120px] text-slate-300 border border-white/5 hidden text-sm leading-relaxed whitespace-pre-wrap"></div>
+                </div>
+
+                <!-- Vision Card -->
+                <div class="card-neo rounded-3xl p-7 space-y-5">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                            <i class="fas fa-eye text-amber-500"></i>
+                        </div>
+                        <h2 class="text-xl font-bold">Vision Analysis</h2>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="group relative bg-slate-950/50 border border-dashed border-white/10 rounded-2xl p-6 text-center hover:border-amber-500/50 transition">
+                            <input type="file" id="vlmImage" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <i class="fas fa-cloud-arrow-up text-3xl text-slate-500 group-hover:text-amber-500 mb-2 transition"></i>
+                            <p class="text-xs text-slate-400 group-hover:text-slate-200">Click or drag image to upload</p>
+                        </div>
+                        <input type="text" id="vlmPrompt" class="w-full rounded-2xl p-4 outline-none placeholder-slate-500" placeholder="What should I find in this image?">
+                    </div>
+                    <button id="btnVlm" onclick="runVLM()" class="w-full py-4 btn-gold text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-3">
+                        <span>Analyze Vision</span>
+                        <i class="fas fa-magnifying-glass text-sm"></i>
+                    </button>
+                    <div id="vlmLoading" class="hidden text-center text-amber-400"><i class="fas fa-spinner fa-spin"></i> Analyzing pixels...</div>
+                    <div id="vlmResult" class="bg-slate-950/50 rounded-2xl p-5 min-h-[120px] text-slate-300 border border-white/5 hidden text-sm leading-relaxed whitespace-pre-wrap"></div>
+                </div>
+
+                <!-- STT Card -->
+                <div class="card-neo rounded-3xl p-7 space-y-5 border-l-4 border-l-emerald-500">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-waveform-lines text-emerald-500 text-xl"></i>
+                        <h2 class="text-xl font-bold">Whisper Transcription</h2>
+                    </div>
+                    <input type="file" id="sttAudio" accept="audio/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-500 file:text-white hover:file:bg-emerald-400 cursor-pointer">
+                    <button id="btnStt" onclick="runSTT()" class="w-full py-4 btn-emerald text-white rounded-2xl font-bold transition flex items-center justify-center space-x-3">
+                        <span>Start Transcription</span>
+                        <i class="fas fa-ear-listen text-sm"></i>
+                    </button>
+                    <div id="sttLoading" class="hidden text-center text-emerald-400"><i class="fas fa-spinner fa-spin"></i> Processing audio...</div>
+                    <div id="sttResult" class="bg-slate-950/50 rounded-2xl p-5 min-h-[100px] text-slate-300 border border-white/5 hidden text-sm whitespace-pre-wrap"></div>
+                </div>
+
+                <!-- PPT Card -->
+                <div class="card-neo rounded-3xl p-7 space-y-5 border-l-4 border-l-amber-500">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-display text-amber-500 text-xl"></i>
+                        <h2 class="text-xl font-bold">Instant PPTX</h2>
+                    </div>
+                    <input type="text" id="pptTopic" class="w-full rounded-2xl p-4 outline-none placeholder-slate-500" placeholder="Target topic for presentation...">
+                    <button id="btnPpt" onclick="runPPT()" class="w-full py-4 btn-gold text-white rounded-2xl font-bold transition flex items-center justify-center space-x-3">
+                        <span>Generate Slides</span>
+                        <i class="fas fa-file-powerpoint text-sm"></i>
+                    </button>
+                    <div id="pptLoading" class="hidden text-center text-amber-400"><i class="fas fa-spinner fa-spin"></i> Structuring content...</div>
+                    <div id="pptResult" class="text-center hidden"></div>
+                </div>
+            </div>
+
+            <!-- Creative Hub Footer -->
+            <div class="glass rounded-[2rem] p-10 flex flex-col md:flex-row items-center justify-between bg-slate-900/40 border-emerald-500/20">
+                <div class="mb-8 md:mb-0 text-center md:text-left">
+                    <h3 class="text-3xl font-black mb-2 italic">DGX Creative Suite</h3>
+                    <p class="text-slate-400 font-medium">Access dedicated GPU clusters for high-fidelity image and video synthesis.</p>
+                </div>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <a href="https://comfyui.tor-ai.com" target="_blank" class="px-8 py-4 emerald-gradient text-white rounded-2xl font-black shadow-xl shadow-emerald-900/40 flex items-center space-x-3 hover:scale-105 transition">
+                        <i class="fas fa-palette"></i>
+                        <span>COMFYUI STUDIO</span>
+                    </a>
+                    <a href="/lecture/" class="px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black flex items-center space-x-3 transition">
+                        <i class="fas fa-film text-amber-500"></i>
+                        <span>LECTURE VOD</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Tab -->
+        <div id="tab-api" class="hidden animate-fade-in">
+            <div class="card-neo rounded-3xl p-10 max-w-5xl mx-auto space-y-10">
+                <div class="flex items-center justify-between border-b border-white/5 pb-8">
+                    <div>
+                        <h2 class="text-3xl font-bold mb-2">API Infrastructure</h2>
+                        <p class="text-slate-400">Tokens required for secure remote execution via CLI or external apps.</p>
+                    </div>
+                    <button onclick="document.getElementById('tokenModal').classList.remove('hidden')" class="btn-emerald px-6 py-3 rounded-xl font-bold text-white">
+                        Create API Token
+                    </button>
+                </div>
+
+                <div class="overflow-hidden rounded-2xl border border-white/5">
+                    <table class="w-full">
+                        <thead class="bg-slate-950/50 text-slate-500 text-[10px] uppercase font-black tracking-widest">
+                            <tr>
+                                <th class="px-8 py-5 text-left">Label</th>
+                                <th class="px-8 py-5 text-left">Identifier</th>
+                                <th class="px-8 py-5 text-right">Settings</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tokenTableBody" class="divide-y divide-white/5 bg-slate-900/30">
+                            <!-- JS Inject -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="space-y-6">
+                    <h3 class="text-lg font-bold text-amber-500 flex items-center space-x-2">
+                        <i class="fas fa-code"></i>
+                        <span>Developer Documentation</span>
+                    </h3>
+                    <div class="bg-slate-950 p-6 rounded-2xl font-mono text-xs border border-white/5 leading-relaxed">
+                        <span class="text-emerald-500"># Programmatic Chat Request</span><br>
+                        curl -X POST <span class="text-amber-500">"https://tor-ai.com/api/llm/chat"</span> \<br>
+                        &nbsp;&nbsp;-H <span class="text-amber-500">"Authorization: Bearer YOUR_TOKEN"</span> \<br>
+                        &nbsp;&nbsp;-d <span class="text-amber-500">'{"prompt": "Hello world"}'</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="tokenModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md">
+        <div class="glass max-w-md w-full rounded-[2rem] p-10 space-y-8 border-emerald-500/20">
+            <h3 class="text-2xl font-bold text-center">New Token Label</h3>
+            <input type="text" id="tokenLabel" class="w-full rounded-2xl p-4 outline-none text-center" placeholder="e.g. My Remote App">
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="document.getElementById('tokenModal').classList.add('hidden')" class="py-4 bg-slate-800 rounded-2xl font-bold">Cancel</button>
+                <button onclick="createToken()" class="py-4 btn-emerald text-white rounded-2xl font-bold">Generate</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="revealModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/95 backdrop-blur-xl">
+        <div class="glass max-w-xl w-full rounded-[2.5rem] p-12 text-center space-y-8 border-amber-500/20 shadow-2xl shadow-amber-500/10">
+            <div class="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-key text-3xl text-amber-500"></i>
+            </div>
+            <h3 class="text-3xl font-black uppercase">Token Generated</h3>
+            <p class="text-slate-400 text-sm">Store this securely. It will not be shown again for security reasons.</p>
+            <div class="bg-slate-950 border border-white/10 rounded-2xl p-5 flex items-center justify-between">
+                <code id="newTokenValue" class="text-amber-400 font-mono text-xs break-all text-left pr-4"></code>
+                <button onclick="copyToClipboard('newTokenValue')" class="text-slate-400 hover:text-white"><i class="fas fa-copy"></i></button>
+            </div>
+            <button onclick="location.reload()" class="w-full py-5 btn-emerald text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/40">I Have Saved It</button>
+        </div>
+    </div>
+
+    <footer class="py-10 text-center border-t border-white/5 opacity-40 text-[10px] font-bold uppercase tracking-[0.3em]">
+        DGX Spark Compute Node &bull; Optimized for Blackwell/Hopper
+    </footer>
+
+    <script>
+        function showTab(tabId) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('tab-active', 'text-white'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.add('text-slate-400'));
+            event.target.classList.add('tab-active', 'text-white');
+            
+            document.getElementById('tab-studio').classList.add('hidden');
+            document.getElementById('tab-api').classList.add('hidden');
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            if(tabId === 'api') loadTokenTable();
+        }
+
+        async function runLLM() {
+            const prompt = document.getElementById('llmPrompt').value;
+            if(!prompt) return;
+            toggleLoading('llm', true);
+            try {
+                const res = await fetch('/api/llm/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt: prompt})
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`Server Error (${res.status}): ${text.substring(0, 100)}`);
+                }
+                const data = await res.json();
+                const resDiv = document.getElementById('llmResult');
+                resDiv.innerText = data.response || data.detail || JSON.stringify(data);
+                resDiv.classList.remove('hidden');
+            } catch(e) { 
+                console.error(e);
+                alert("Generation failed: " + e.message); 
+            }
+            toggleLoading('llm', false);
+        }
+
+        async function runVLM() {
+            const file = document.getElementById('vlmImage').files[0];
+            const prompt = document.getElementById('vlmPrompt').value || "Describe this image.";
+            if(!file) return alert("Select image");
+            toggleLoading('vlm', true);
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('prompt', prompt);
+            try {
+                const res = await fetch('/api/vlm/analyze', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`Server Error (${res.status}): ${text.substring(0, 100)}`);
+                }
+                const data = await res.json();
+                const resDiv = document.getElementById('vlmResult');
+                resDiv.innerText = data.response || data.detail || JSON.stringify(data);
+                resDiv.classList.remove('hidden');
+            } catch(e) { 
+                console.error(e);
+                alert("Analysis failed: " + e.message); 
+            }
+            toggleLoading('vlm', false);
+        }
+
+        async function runSTT() {
+            const file = document.getElementById('sttAudio').files[0];
+            if(!file) return alert("Select audio");
+            toggleLoading('stt', true);
+            const formData = new FormData();
+            formData.append('audio', file);
+            try {
+                const res = await fetch('/api/audio/stt', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`Server Error (${res.status}): ${text.substring(0, 100)}`);
+                }
+                const data = await res.json();
+                const resDiv = document.getElementById('sttResult');
+                resDiv.innerText = data.text || data.detail || JSON.stringify(data);
+                resDiv.classList.remove('hidden');
+            } catch(e) { 
+                console.error(e);
+                alert("Transcription failed: " + e.message); 
+            }
+            toggleLoading('stt', false);
+        }
+
+        async function runPPT() {
+            const topic = document.getElementById('pptTopic').value;
+            if(!topic) return;
+            toggleLoading('ppt', true);
+            const formData = new FormData();
+            formData.append('topic', topic);
+            try {
+                const res = await fetch('/api/ppt/generate', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`Server Error (${res.status}): ${text.substring(0, 100)}`);
+                }
+                const data = await res.json();
+                if(data.download_url) {
+                    const resDiv = document.getElementById('pptResult');
+                    // Ensure download URL is absolute or correctly rooted
+                    const downloadUrl = data.download_url.startsWith('/') ? data.download_url : '/' + data.download_url;
+                    resDiv.innerHTML = `<a href="${downloadUrl}" download class="inline-flex items-center space-x-3 px-8 py-4 btn-emerald text-white rounded-2xl font-bold shadow-xl shadow-emerald-900/30 transition hover:scale-105"><i class="fas fa-file-arrow-down"></i><span>Download Presentation</span></a>`;
+                    resDiv.classList.remove('hidden');
+                }
+            } catch(e) { 
+                console.error(e);
+                alert("PPT Generation failed: " + e.message); 
+            }
+            toggleLoading('ppt', false);
+        }
+
+        async function loadTokenTable() {
+            try {
+                const res = await fetch('/api/tokens/list');
+                if (!res.ok) return;
+                const tokens = await res.json();
+                const body = document.getElementById('tokenTableBody');
+                body.innerHTML = '';
+                for(const [token, label] of Object.entries(tokens)) {
+                    body.innerHTML += `
+                        <tr class="hover:bg-white/[0.02] transition">
+                            <td class="px-8 py-5 font-bold text-emerald-500">${label}</td>
+                            <td class="px-8 py-5 font-mono text-slate-500 text-xs">${token.substring(0, 15)}...</td>
+                            <td class="px-8 py-5 text-right">
+                                <span class="text-[10px] text-slate-600 bg-white/5 px-2 py-1 rounded">Active</span>
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (e) { console.error("Failed to load tokens:", e); }
+        }
+
+        async function createToken() {
+            const label = document.getElementById('tokenLabel').value;
+            if(!label) return;
+            try {
+                const res = await fetch('/api/tokens/create', { method: 'POST', body: new URLSearchParams({label: label}) });
+                const data = await res.json();
+                document.getElementById('tokenModal').classList.add('hidden');
+                document.getElementById('newTokenValue').innerText = data.token;
+                document.getElementById('revealModal').classList.remove('hidden');
+            } catch (e) { alert("Token creation failed: " + e); }
+        }
+
+        function toggleLoading(id, isLoading) {
+            document.getElementById(id + 'Loading').classList.toggle('hidden', !isLoading);
+            document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).disabled = isLoading;
+            if(isLoading) document.getElementById(id + 'Result').classList.add('hidden');
+        }
+
+        function copyToClipboard(id) {
+            const text = document.getElementById(id).innerText;
+            navigator.clipboard.writeText(text);
+            alert("Copied to clipboard!");
+        }
+    </script>
+</body>
+</html>

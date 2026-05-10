@@ -1,0 +1,26 @@
+services:
+  comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: comfyui
+    shm_size: "8gb"
+    restart: unless-stopped
+    ports:
+      - "8188:8188"
+    volumes:
+      - ./models:/app/ComfyUI/models
+      - ./output:/app/ComfyUI/output
+      - ./custom_nodes_persistent:/app/ComfyUI/custom_nodes
+      - ./flows:/app/ComfyUI/user/default/workflows
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CLI_ARGS=--force-fp16
+

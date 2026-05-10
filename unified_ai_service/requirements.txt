@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+aiohttp
+python-pptx
+openai-whisper
+pydub
+openai
+jinja2
+python-dotenv

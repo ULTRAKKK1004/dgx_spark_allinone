@@ -1,0 +1,33 @@
+services:
+  vllm:
+    image: vllm-dgx
+    container_name: vllm-server
+    shm_size: "32gb"
+    restart: unless-stopped
+    ports:
+      - "8080:8000"
+    volumes:
+      - /home/yanus/Docker/vllm_cache:/root/.cache/huggingface
+      - /home/yanus/Docker/models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_TOKEN=YOUR_HF_TOKEN_HERE
+      - VLLM_V1_ENABLED=0
+    command: >
+      python3 -m vllm.entrypoints.openai.api_server
+      --model google/gemma-4-26B-A4B-it
+      --trust-remote-code
+      --max-model-len 8192
+      --dtype auto
+      --quantization fp8
+      --gpu-memory-utilization 0.8
+      --max-num-batched-tokens 4096
+      --tensor-parallel-size 1
+      --enforce-eager

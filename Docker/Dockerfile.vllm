@@ -1,0 +1,8 @@
+FROM nvcr.io/nvidia/pytorch:25.11-py3
+
+RUN pip install --upgrade pip && \
+    pip install vllm==0.20.1
+
+EXPOSE 8000
+
+CMD ["python3", "-m", "vllm.entrypoints.openai.api_server", "--host", "0.0.0.0", "--port", "8000"]

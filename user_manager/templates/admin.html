@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 대시보드 - Tor-AI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        .container { padding-top: 2rem; }
+        h2 { margin-top: 2rem; }
+        table { width: 100%; }
+        .log-link { font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>Tor-AI Admin</strong></li>
+        </ul>
+        <ul>
+            <li>{{ admin_email }}</li>
+        </ul>
+    </nav>
+    <main class="container">
+        <section>
+            <h2>회원 관리</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>이름</th>
+                        <th>이메일</th>
+                        <th>접속횟수</th>
+                        <th>최근접속일</th>
+                        <th>레벨</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.login_count }}</td>
+                        <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'N/A' }}</td>
+                        <td>
+                            <form action="/admin/update_user" method="post" style="margin:0;">
+                                <input type="hidden" name="email" value="{{ user.email }}">
+                                <select name="level" onchange="this.form.submit()">
+                                    {% for lvl in ['삭제된회원', '차단된회원', '뉴비', '일반회원', '우수회원', '준관리자', '관리자'] %}
+                                    <option value="{{ lvl }}" {% if user.level == lvl %}selected{% endif %}>{{ lvl }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td>
+                            <a href="/admin/logs/{{ user.email }}" class="log-link">활동내역</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>권한 설정</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>레벨</th>
+                        <th>vLLM</th>
+                        <th>ComfyUI</th>
+                        <th>Admin Panel</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lvl in levels %}
+                    <tr>
+                        <form action="/admin/update_permissions" method="post" style="margin:0;">
+                            <input type="hidden" name="level" value="{{ lvl.level }}">
+                            <td>{{ lvl.level }}</td>
+                            <td><input type="checkbox" name="vllm" {% if lvl.permissions.get('vllm') %}checked{% endif %} value="true"></td>
+                            <td><input type="checkbox" name="comfyui" {% if lvl.permissions.get('comfyui') %}checked{% endif %} value="true"></td>
+                            <td><input type="checkbox" name="admin" {% if lvl.permissions.get('admin') %}checked{% endif %} value="true"></td>
+                            <td><button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">저장</button></td>
+                        </form>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

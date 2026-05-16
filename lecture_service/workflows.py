@@ -49,7 +49,7 @@ def get_stage1_image_gen_workflow(lecturer_img, prompt, job_id):
                 "cfg": 7.0,
                 "sampler_name": "dpmpp_2m",
                 "scheduler": "karras",
-                "denoise": 0.5,
+                "denoise": 0.35,
                 "model": ["sdxl_loader", 0],
                 "positive": ["pos_clip", 0],
                 "negative": ["neg_clip", 0],

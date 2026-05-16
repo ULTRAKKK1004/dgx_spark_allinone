@@ -137,16 +137,21 @@ class LectureOrchestrator:
                 status_callback(msg)
 
         # Stage 1: Image Gen + Face Swap
-        update_status("Stage 1: Generating lecturer image and swapping face...")
-        img_name = f"lecturer_input_{self.job_id}.jpg"
-        await self.upload_file(self.lecturer_img, img_name)
-        
-        wf_s1 = get_stage1_image_gen_workflow(img_name, self.prompt, self.job_id)
-        s1_img_filename = await self.run_workflow(wf_s1)
-        s1_img_path = os.path.join(HOST_OUTPUT_DIR, s1_img_filename)
-        
-        # Copy S1 image to results for reference
-        shutil.copy(s1_img_path, os.path.join(self.results_dir, "stage1_output.jpg"))
+        if self.use_direct_image:
+            update_status("Skipping Stage 1 (Direct image use)...")
+            # Just copy the input image to results/stage1_output.jpg
+            shutil.copy(self.lecturer_img, os.path.join(self.results_dir, "stage1_output.jpg"))
+        else:
+            update_status("Stage 1: Generating lecturer image and swapping face...")
+            img_name = f"lecturer_input_{self.job_id}.jpg"
+            await self.upload_file(self.lecturer_img, img_name)
+            
+            wf_s1 = get_stage1_image_gen_workflow(img_name, self.prompt, self.job_id)
+            s1_img_filename = await self.run_workflow(wf_s1)
+            s1_img_path = os.path.join(HOST_OUTPUT_DIR, s1_img_filename)
+            
+            # Copy S1 image to results for reference
+            shutil.copy(s1_img_path, os.path.join(self.results_dir, "stage1_output.jpg"))
         
         # Stage 2: AnimateDiff Idle Loop
         update_status("Stage 2: Creating idle loop with AnimateDiff...")

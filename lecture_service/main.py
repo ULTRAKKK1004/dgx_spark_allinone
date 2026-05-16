@@ -102,6 +102,10 @@ HTML_TEMPLATE = """
                 <label>3. Lecture Topic/Prompt (Optional)</label>
                 <input type="text" id="promptInput" placeholder="e.g. Physics lecture about black holes">
             </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="directImage" style="width:auto;">
+                <label for="directImage" style="margin:0;">Use my photo directly (Skip AI enhancement)</label>
+            </div>
             <p style="color: #8b949e; font-size: 14px;">* The system will automatically generate a professional lecture hall setting.</p>
             <button id="submitBtn" onclick="generateVideo()">Create Lecture Video</button>
         </div>
@@ -224,6 +228,7 @@ HTML_TEMPLATE = """
             const imageFile = document.getElementById('imageInput').files[0];
             const audioFile = document.getElementById('audioInput').files[0];
             const prompt = document.getElementById('promptInput').value;
+            const useDirectImage = document.getElementById('directImage').checked;
             const submitBtn = document.getElementById('submitBtn');
 
             if (!imageFile || !audioFile) { alert("Select files first."); return; }
@@ -235,6 +240,7 @@ HTML_TEMPLATE = """
             formData.append('image', imageFile);
             formData.append('audio', audioFile);
             formData.append('prompt', prompt || "");
+            formData.append('use_direct_image', useDirectImage);
 
             try {
                 const response = await fetch('/generate', { method: 'POST', body: formData });

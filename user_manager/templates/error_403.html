@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>접근 제한 - Tor-AI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f7f9;
+        }
+        article {
+            text-align: center;
+            max-width: 400px;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        h1 { color: #d81b60; font-size: 1.5rem; }
+        p { margin-bottom: 2rem; color: #555; }
+        .back-button {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <article>
+        <header>
+            <h1>⚠️ 접근 권한 없음</h1>
+        </header>
+        <p>죄송합니다. 이 페이지는 <strong>관리자만</strong> 접속할 수 있습니다.</p>
+        <footer>
+            <button class="back-button" onclick="history.back()">뒤로 가기</button>
+        </footer>
+    </article>
+</body>
+</html>

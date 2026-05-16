@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>활동 내역 - {{ email }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        .container { padding-top: 2rem; }
+        .back-link { margin-bottom: 1rem; display: block; }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <a href="/admin" class="back-link">← 대시보드로 돌아가기</a>
+        <h1>활동 내역: {{ email }}</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>시간</th>
+                    <th>작업</th>
+                    <th>상세내용</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.action }}</td>
+                    <td>{{ log.details }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

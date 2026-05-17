@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DGX Spark AI Hub</title>
+    <title>AI Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -32,28 +32,126 @@
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        /* Profile Dropdown Styles */
+        .profile-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #1e293b;
+            min-width: 240px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 1rem;
+            z-index: 100;
+            margin-top: 0.5rem;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+            animation: fadeIn 0.2s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .dropdown-content.show {
+            display: block;
+        }
+        .dropdown-item {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #94a3b8;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .dropdown-item:hover {
+            background-color: rgba(255,255,255,0.05);
+            color: #fff;
+        }
+        .dropdown-item.danger {
+            color: #ef4444;
+        }
+        .dropdown-item.danger:hover {
+            background-color: rgba(239, 68, 68, 0.1);
+        }
+        .dropdown-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.02);
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
     <!-- Header -->
-    <header class="glass sticky top-0 z-50 px-8 py-4 flex justify-between items-center border-b border-white/5">
-        <div class="flex items-center space-x-4">
-            <div class="emerald-gradient p-2.5 rounded-xl shadow-lg">
-                <i class="fas fa-microchip text-white text-xl"></i>
+    <header class="glass sticky top-0 z-50 px-3 sm:px-8 py-3 sm:py-4 flex justify-between items-center border-b border-white/5 gap-2">
+        <div class="flex items-center space-x-2 sm:space-x-4 min-w-0">
+            <div class="emerald-gradient p-2 sm:p-2.5 rounded-xl shadow-lg flex-shrink-0">
+                <i class="fas fa-microchip text-white text-base sm:text-xl"></i>
             </div>
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight text-gradient">DGX Spark Hub</h1>
-                <p class="text-[10px] text-emerald-500 uppercase tracking-[0.2em] font-bold">Advanced AI Infrastructure</p>
+            <div class="min-w-0">
+                <h1 class="text-lg sm:text-2xl font-bold tracking-tight text-gradient truncate">AI Hub</h1>
+                <p class="hidden sm:block text-[10px] text-emerald-500 uppercase tracking-[0.2em] font-bold">Advanced AI Infrastructure</p>
             </div>
         </div>
-        <nav class="flex items-center space-x-8 text-sm font-semibold">
+
+        <nav class="flex items-center space-x-3 sm:space-x-6 lg:space-x-8 text-sm font-semibold flex-shrink-0">
             <button id="nav-studio" onclick="showTab('studio')" class="nav-btn tab-active py-1">Studio</button>
-            <button id="nav-tasks" onclick="showTab('tasks')" class="nav-btn text-slate-400 hover:text-white transition py-1">Tasks & History</button>
-            <button id="nav-api" onclick="showTab('api')" class="nav-btn text-slate-400 hover:text-white transition py-1">API Keys</button>
-            <a href="/lecture/" class="px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition flex items-center space-x-2">
+            <button id="nav-tasks" onclick="showTab('tasks')" class="nav-btn text-slate-400 hover:text-white transition py-1 hidden sm:inline-block">Tasks &amp; History</button>
+            <button id="nav-api" onclick="showTab('api')" class="nav-btn text-slate-400 hover:text-white transition py-1 hidden md:inline-block">API Keys</button>
+            <a href="/lecture/" class="hidden lg:flex px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition items-center space-x-2">
                 <i class="fas fa-video text-emerald-500"></i>
                 <span>Lecture Studio</span>
             </a>
+
+            <!-- User Profile Dropdown -->
+            <div class="profile-dropdown">
+                <button onclick="toggleDropdown()" class="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-white/5 transition border border-transparent hover:border-white/10">
+                    <img src="{{ user_image }}" alt="User" class="w-8 h-8 rounded-lg shadow-inner object-cover" onerror="this.src='https://ui-avatars.com/api/?name={{ user_name }}&background=10b981&color=fff'">
+                    <i class="fas fa-chevron-down text-[10px] text-slate-500"></i>
+                </button>
+                <div id="profileDropdown" class="dropdown-content">
+                    <div class="dropdown-header">
+                        <div class="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-1">Signed in as</div>
+                        <div class="text-sm font-bold truncate">{{ user_name }}</div>
+                        <div class="text-[10px] text-slate-400 truncate">{{ user_email }}</div>
+                    </div>
+                    <div class="py-2 sm:hidden border-b border-white/5">
+                        <div class="dropdown-item" onclick="showTab('tasks'); toggleDropdown()">
+                            <i class="fas fa-list-check w-5"></i>
+                            <span>Tasks &amp; History</span>
+                        </div>
+                        <div class="dropdown-item" onclick="showTab('api'); toggleDropdown()">
+                            <i class="fas fa-key w-5"></i>
+                            <span>API Keys</span>
+                        </div>
+                        <a href="/lecture/" class="dropdown-item">
+                            <i class="fas fa-video w-5 text-emerald-500"></i>
+                            <span>Lecture Studio</span>
+                        </a>
+                    </div>
+                    <div class="py-2">
+                        <div class="dropdown-item" onclick="showUserInfo()">
+                            <i class="fas fa-user-circle w-5"></i>
+                            <span>User Information</span>
+                        </div>
+                        <a href="/logout" class="dropdown-item">
+                            <i class="fas fa-sign-out-alt w-5"></i>
+                            <span>Logout</span>
+                        </a>
+                        <div class="dropdown-item danger" onclick="unregisterUser()">
+                            <i class="fas fa-user-slash w-5"></i>
+                            <span>Unregister (Delete Account)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </nav>
     </header>
 
@@ -251,7 +349,7 @@
         let pollingJobs = new Set();
 
         const sysPrompts = {
-            general: "You are Gemma 4, an advanced, highly intelligent AI assistant deployed on DGX Spark. Provide detailed, helpful, and polite answers.",
+            general: "You are an advanced, highly intelligent AI assistant. Provide detailed, helpful, and polite answers.",
             coder: "You are an expert Principal Software Engineer. Provide complete, bug-free, and well-commented code. Think step-by-step.",
             analyst: "You are a Senior Data Analyst. Analyze inputs critically, structure data well, and prepare for RAG contexts. Use markdown tables where appropriate.",
             creative: "You are a master storyteller and creative consultant. Provide engaging, vivid, and imaginative content."
@@ -502,6 +600,44 @@
             const text = document.getElementById(id).innerText;
             navigator.clipboard.writeText(text);
             alert("Copied!");
+        }
+
+        // Profile Dropdown Functions
+        function toggleDropdown() {
+            document.getElementById("profileDropdown").classList.toggle("show");
+        }
+
+        window.onclick = function(event) {
+            if (!event.target.closest('.profile-dropdown')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    var openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
+        }
+
+        function showUserInfo() {
+            const name = "{{ user_name }}";
+            const email = "{{ user_email }}";
+            const photo = "{{ user_image }}";
+            alert(`User Information:\nName: ${name}\nEmail: ${email}\nPhoto URL: ${photo}`);
+        }
+
+        async function unregisterUser() {
+            if (confirm("Are you sure you want to unregister? This will delete your account data and sign you out.")) {
+                try {
+                    const res = await fetch('/api/user/unregister', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                    }
+                } catch (e) {
+                    alert("Unregistration failed: " + e.message);
+                }
+            }
         }
     </script>
 </body>

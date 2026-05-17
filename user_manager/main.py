@@ -32,6 +32,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     name = Column(String)
+    picture = Column(String)
     login_count = Column(Integer, default=0)
     last_login = Column(DateTime)
     level = Column(String, default="뉴비")
@@ -51,6 +52,13 @@ class LevelPermission(Base):
     permissions = Column(JSON) # {"vllm": True, "comfyui": False, ...}
 
 Base.metadata.create_all(bind=engine)
+
+# Lightweight migration: add new columns to pre-existing SQLite DBs.
+with engine.begin() as _conn:
+    from sqlalchemy import text as _text
+    _existing_cols = {row[1] for row in _conn.execute(_text("PRAGMA table_info(users)")).fetchall()}
+    if "picture" not in _existing_cols:
+        _conn.execute(_text("ALTER TABLE users ADD COLUMN picture VARCHAR"))
 
 # Initial Levels and default permissions
 DEFAULT_LEVELS = [
@@ -87,14 +95,37 @@ ADMIN_EMAIL = "yeonwoo.kim03@gmail.com"
 
 # --- Endpoints ---
 
+async def _fetch_google_profile(access_token: str) -> dict:
+    """Call Google's userinfo endpoint with the OAuth access token.
+
+    Returns dict with 'name' and 'picture' on success, empty dict on failure.
+    """
+    if not access_token:
+        return {}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return {"name": data.get("name"), "picture": data.get("picture")}
+                logger.warning(f"Google userinfo returned {resp.status}")
+    except Exception as e:
+        logger.warning(f"Google userinfo fetch failed: {e}")
+    return {}
+
+
 @app.get("/auth/verify")
 async def verify_user(request: Request, db: Session = Depends(get_db)):
     oauth2_url = "http://127.0.0.1:4180/oauth2/auth"
-    
+
     host = request.headers.get("Host", "unknown")
     uri = request.headers.get("X-Original-URI", "unknown")
     cookie = request.headers.get("cookie", "")
-    
+
     logger.info(f"Verify Request - Host: {host}, URI: {uri}, HasCookie: {bool(cookie)}")
 
     forward_headers = {}
@@ -102,21 +133,28 @@ async def verify_user(request: Request, db: Session = Depends(get_db)):
         forward_headers["cookie"] = cookie
     if "authorization" in request.headers:
         forward_headers["authorization"] = request.headers["authorization"]
-    
+
     # We must forward the host so oauth2-proxy knows which domain's cookie to look for
     forward_headers["Host"] = host
 
     async with aiohttp.ClientSession() as session:
         async with session.get(oauth2_url, headers=forward_headers) as resp:
             logger.info(f"OAuth2 Proxy Status: {resp.status} for {host}")
-            logger.info(f"OAuth2 Proxy Headers: {dict(resp.headers)}")
             if resp.status not in [200, 202]:
                 return Response(status_code=resp.status)
-            
-            email = resp.headers.get("X-Auth-Request-Email") or resp.headers.get("x-auth-request-email")
-            name = resp.headers.get("X-Auth-Request-User") or resp.headers.get("x-auth-request-user")
 
-    logger.info(f"Auth Success - Email: {email}, Name: {name}")
+            email = resp.headers.get("X-Auth-Request-Email") or resp.headers.get("x-auth-request-email")
+            sub = resp.headers.get("X-Auth-Request-User") or resp.headers.get("x-auth-request-user")
+            preferred = (
+                resp.headers.get("X-Auth-Request-Preferred-Username")
+                or resp.headers.get("x-auth-request-preferred-username")
+            )
+            access_token = (
+                resp.headers.get("X-Auth-Request-Access-Token")
+                or resp.headers.get("x-auth-request-access-token")
+            )
+
+    logger.info(f"Auth Success - Email: {email}, Sub: {sub}, Preferred: {preferred}, HasToken: {bool(access_token)}")
 
     if not email:
         logger.warning("Auth Success but no email in headers")
@@ -126,11 +164,32 @@ async def verify_user(request: Request, db: Session = Depends(get_db)):
     if "vllm" in host: resource = "vllm"
     elif "comfyui" in host: resource = "comfyui"
     elif "tube" in host: resource = "tube"
+    elif "blog" in host: resource = "blog"
     elif "admin" in host or uri.startswith("/admin"): resource = "admin"
-    
+
     user = db.query(User).filter(User.email == email).first()
+
+    # Prefer the human-readable name from preferred_username; fall back to sub.
+    display_name = preferred or (user.name if user else None) or sub or email.split("@")[0]
+
+    needs_picture_fetch = user is None or not user.picture
+    if needs_picture_fetch and access_token:
+        profile = await _fetch_google_profile(access_token)
+        if profile.get("name"):
+            display_name = profile["name"]
+        picture_url = profile.get("picture")
+    else:
+        picture_url = user.picture if user else None
+
     if not user:
-        user = User(email=email, name=name, level="뉴비", login_count=1, last_login=datetime.datetime.utcnow())
+        user = User(
+            email=email,
+            name=display_name,
+            picture=picture_url,
+            level="뉴비",
+            login_count=1,
+            last_login=datetime.datetime.utcnow(),
+        )
         db.add(user)
         log = ActivityLog(email=email, action="signup", details=f"Access {host}{uri}")
         db.add(log)
@@ -139,19 +198,27 @@ async def verify_user(request: Request, db: Session = Depends(get_db)):
     else:
         user.login_count += 1
         user.last_login = datetime.datetime.utcnow()
-        if name and user.name != name:
-            user.name = name
+        if display_name and user.name != display_name:
+            user.name = display_name
+        if picture_url and user.picture != picture_url:
+            user.picture = picture_url
         log = ActivityLog(email=email, action="access", details=f"Access {host}{uri}")
         db.add(log)
         db.commit()
 
+    def _ok_response() -> Response:
+        r = Response(status_code=200)
+        r.headers["X-Auth-Request-User"] = user.name or sub or ""
+        r.headers["X-Auth-Request-Email"] = email
+        r.headers["X-Auth-Request-Preferred-Username"] = user.name or preferred or ""
+        if user.picture:
+            r.headers["X-Auth-Request-Image"] = user.picture
+        return r
+
     # Admin check override
     if email == ADMIN_EMAIL:
         logger.info(f"Admin Bypass for {email}")
-        response = Response(status_code=200)
-        response.headers["X-Auth-Request-User"] = name or ""
-        response.headers["X-Auth-Request-Email"] = email
-        return response
+        return _ok_response()
 
     if user.level == "차단된회원" or user.level == "삭제된회원":
         logger.warning(f"Access Denied - Level: {user.level} for {email}")
@@ -164,10 +231,7 @@ async def verify_user(request: Request, db: Session = Depends(get_db)):
             logger.warning(f"Access Denied - No perm for {resource} for {email}")
             return Response(status_code=403)
 
-    response = Response(status_code=200)
-    response.headers["X-Auth-Request-User"] = name or ""
-    response.headers["X-Auth-Request-Email"] = email
-    return response
+    return _ok_response()
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, db: Session = Depends(get_db)):

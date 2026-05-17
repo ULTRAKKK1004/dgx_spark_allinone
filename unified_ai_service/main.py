@@ -8,7 +8,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Hea
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -20,7 +21,8 @@ import ppt_service
 import auth_service
 import job_manager
 
-app = FastAPI(title="DGX Spark AI Hub")
+app = FastAPI(title="AI Hub")
+templates = Jinja2Templates(directory="templates")
 
 app.add_middleware(
     CORSMiddleware,
@@ -184,10 +186,101 @@ async def get_result_file(filename: str):
         return FileResponse(filepath)
     raise HTTPException(status_code=404, detail="File not found")
 
+# User management endpoints
+@app.get("/api/user/info")
+async def get_user_info(request: Request):
+    email = request.headers.get("X-Email")
+    user = request.headers.get("X-User")
+    return {"email": email, "name": user}
+
+@app.get("/logout")
+async def logout(request: Request):
+    # Bounce through oauth2-proxy to clear the session cookie, then land on
+    # the public /logout_done page (which is exempt from auth_request in
+    # nginx) so we don't loop back into the sign-in flow.
+    host = request.headers.get("host", "tor-ai.com")
+    return RedirectResponse(
+        url=f"/oauth2/sign_out?rd=https://{host}/logout_done",
+        status_code=303,
+    )
+
+
+@app.get("/logout_done", response_class=HTMLResponse)
+async def logout_done(request: Request):
+    return HTMLResponse(content="""<!DOCTYPE html>
+<html lang=\"ko\"><head>
+<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+<title>로그아웃 완료 | TOR-AI</title>
+<style>
+  body{margin:0;font-family:'Outfit','Pretendard',sans-serif;background:#0f172a;color:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh}
+  .card{background:#1e293b;border:1px solid rgba(255,255,255,.08);border-radius:1.5rem;padding:3rem;max-width:420px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,.5)}
+  h1{margin:0 0 .5rem;font-size:1.5rem}
+  p{color:#94a3b8;margin:0 0 2rem}
+  .btn{display:inline-block;padding:.875rem 1.5rem;background:#10b981;color:#fff;text-decoration:none;border-radius:.75rem;font-weight:600;transition:background .2s}
+  .btn:hover{background:#059669}
+  .icon{font-size:3rem;margin-bottom:1rem}
+</style></head><body>
+<div class=\"card\">
+  <div class=\"icon\">👋</div>
+  <h1>로그아웃 되었습니다</h1>
+  <p>안전하게 세션이 종료되었습니다.</p>
+  <a class=\"btn\" href=\"/\">다시 로그인</a>
+</div></body></html>""")
+
+@app.post("/api/user/unregister")
+async def unregister(request: Request):
+    email = request.headers.get("X-Email")
+    logger.info(f"User unregister request: {email}")
+    return {"status": "success", "redirect": "/oauth2/sign_out"}
+
 @app.get("/", response_class=HTMLResponse)
-async def serve_ui():
-    with open(os.path.join(BASE_DIR, "templates", "index.html"), "r") as f:
-        return f.read()
+async def serve_ui(request: Request):
+    try:
+        # Detailed Header Logging (sanitized for sensitive info)
+        headers = {k: v for k, v in request.headers.items() if "auth" not in k.lower() and "cookie" not in k.lower()}
+        logger.info(f"Serve UI - Headers: {headers}")
+
+        user_email = request.headers.get("X-Email")
+        if not user_email or user_email in ["", "None", "Guest"]:
+            user_email = "Guest"
+
+        # Prefer the human-readable display name from preferred_username
+        # (oauth2-proxy + user_manager). X-User is the Google sub (numeric
+        # id), so it's only used as a last resort.
+        pref_user = request.headers.get("X-Preferred-Username")
+        x_user = request.headers.get("X-User")
+
+        def _is_numeric(s: str) -> bool:
+            return bool(s) and s.isdigit()
+
+        user_name = pref_user
+        if not user_name or _is_numeric(user_name):
+            user_name = user_email.split("@")[0] if "@" in user_email and user_email != "Guest" else (x_user or "User")
+        if _is_numeric(user_name):
+            user_name = "User"
+
+        # Profile picture: user_manager populates this from Google userinfo.
+        user_image = request.headers.get("X-User-Image") or request.headers.get("X-Auth-Request-Image")
+        if not user_image or user_image in ["", "None", "undefined", "null"]:
+            from urllib.parse import quote
+            user_image = (
+                f"https://ui-avatars.com/api/?name={quote(user_name)}"
+                "&background=10b981&color=fff"
+            )
+
+        logger.info(f"Resolved User Info - Name: {user_name}, Email: {user_email}, Image: {user_image}")
+
+        context = {
+            "request": request,
+            "user_email": str(user_email),
+            "user_name": str(user_name),
+            "user_image": str(user_image)
+        }
+        return templates.TemplateResponse(request, "index.html", context)
+    except Exception as e:
+        logger.error(f"Critical Error in serve_ui: {e}", exc_info=True)
+        # Fallback to a simple message if template rendering fails
+        return HTMLResponse(content=f"<h1>Internal Server Error</h1><p>{str(e)}</p>", status_code=500)
 
 if __name__ == "__main__":
     import uvicorn

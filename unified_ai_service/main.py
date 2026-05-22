@@ -21,8 +21,14 @@ import ppt_service
 import auth_service
 import job_manager
 
+import media_audio
+import media_video
+import media_image
+
+
 app = FastAPI(title="AI Hub")
 templates = Jinja2Templates(directory="templates")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -118,7 +124,139 @@ async def process_ppt_task(job_id: str, topic: str):
     except Exception as e:
         job_manager.update_job(job_id, "failed", error=str(e))
 
+
+async def process_media_image_task(job_id: str, prompt: str):
+    try:
+        job_manager.update_job(job_id, "processing")
+        result_path = await media_image.generate_image(prompt)
+        job_manager.update_job(job_id, "completed", result=f"/api/results/{os.path.basename(result_path)}")
+    except Exception as e:
+        job_manager.update_job(job_id, "failed", error=str(e))
+
+async def process_media_music_task(job_id: str, prompt: str, duration: int):
+    try:
+        job_manager.update_job(job_id, "processing")
+        result_path = await media_audio.generate_music(prompt, duration)
+        job_manager.update_job(job_id, "completed", result=f"/api/results/{os.path.basename(result_path)}")
+    except Exception as e:
+        job_manager.update_job(job_id, "failed", error=str(e))
+
+async def process_media_tts_task(job_id: str, text: str, ref_audio: str, ref_text: str):
+    try:
+        job_manager.update_job(job_id, "processing")
+        result_path = await media_audio.generate_tts_with_effects(text, ref_audio, ref_text)
+        job_manager.update_job(job_id, "completed", result=f"/api/results/{os.path.basename(result_path)}")
+    except Exception as e:
+        job_manager.update_job(job_id, "failed", error=str(e))
+
+async def process_media_video_gen_task(job_id: str, prompt: str, base_image: str, target_dur: int):
+    try:
+        job_manager.update_job(job_id, "processing")
+        result_path = await media_video.generate_long_video(prompt, base_image, target_dur)
+        job_manager.update_job(job_id, "completed", result=f"/api/results/{os.path.basename(result_path)}")
+    except Exception as e:
+        job_manager.update_job(job_id, "failed", error=str(e))
+
+async def process_media_video_edit_task(job_id: str, video_path: str, audio_path: str, prompt: str):
+    try:
+        job_manager.update_job(job_id, "processing")
+        result_path = await media_video.edit_video(video_path, audio_path, prompt=prompt)
+        job_manager.update_job(job_id, "completed", result=f"/api/results/{os.path.basename(result_path)}")
+    except Exception as e:
+        job_manager.update_job(job_id, "failed", error=str(e))
+
+
+async def process_media_video_shorts_task(job_id: str, video_path: str, prompt: str):
+    try:
+        job_manager.update_job(job_id, "processing")
+        import media_video
+        result_path = await media_video.shorten_video(video_path, prompt)
+        job_manager.update_job(job_id, "completed", result=f"/api/results/{os.path.basename(result_path)}")
+    except Exception as e:
+        job_manager.update_job(job_id, "failed", error=str(e))
+
+async def process_media_video_analyze_task(job_id: str, video_path: str, prompt: str):
+    try:
+        job_manager.update_job(job_id, "processing")
+        import media_video
+        result_text = await media_video.analyze_video(video_path, prompt)
+        job_manager.update_job(job_id, "completed", result=result_text)
+    except Exception as e:
+        job_manager.update_job(job_id, "failed", error=str(e))
+
 # Endpoints
+
+@app.post("/api/media/image")
+async def generate_image_endpoint(background_tasks: BackgroundTasks, prompt: str = Form(...), auth = Depends(flexible_auth)):
+    job_id = job_manager.create_job("media_image", {"prompt": prompt})
+    background_tasks.add_task(process_media_image_task, job_id, prompt)
+    return {"job_id": job_id}
+
+@app.post("/api/media/music")
+async def generate_music_endpoint(background_tasks: BackgroundTasks, prompt: str = Form(...), duration: int = Form(10), auth = Depends(flexible_auth)):
+    job_id = job_manager.create_job("media_music", {"prompt": prompt, "duration": duration})
+    background_tasks.add_task(process_media_music_task, job_id, prompt, duration)
+    return {"job_id": job_id}
+
+@app.post("/api/media/tts")
+async def generate_tts_endpoint(background_tasks: BackgroundTasks, text: str = Form(...), ref_audio: UploadFile = File(None), ref_text: str = Form(""), auth = Depends(flexible_auth)):
+    ref_path = ""
+    if ref_audio:
+        ref_path = os.path.join(UPLOADS_DIR, f"ref_{uuid.uuid4().hex}_{ref_audio.filename}")
+        with open(ref_path, "wb") as f:
+            f.write(await ref_audio.read())
+            
+    job_id = job_manager.create_job("media_tts", {"text": text})
+    background_tasks.add_task(process_media_tts_task, job_id, text, ref_path, ref_text)
+    return {"job_id": job_id}
+
+@app.post("/api/media/video/gen")
+async def generate_video_endpoint(background_tasks: BackgroundTasks, prompt: str = Form(...), duration: int = Form(30), base_image: UploadFile = File(...), auth = Depends(flexible_auth)):
+    img_path = os.path.join(UPLOADS_DIR, f"base_img_{uuid.uuid4().hex}_{base_image.filename}")
+    with open(img_path, "wb") as f:
+        f.write(await base_image.read())
+        
+    job_id = job_manager.create_job("media_video_gen", {"prompt": prompt, "duration": duration})
+    background_tasks.add_task(process_media_video_gen_task, job_id, prompt, img_path, duration)
+    return {"job_id": job_id}
+
+@app.post("/api/media/video/edit")
+async def edit_video_endpoint(background_tasks: BackgroundTasks, prompt: str = Form(""), video: UploadFile = File(...), audio: UploadFile = File(None), auth = Depends(flexible_auth)):
+    vid_path = os.path.join(UPLOADS_DIR, f"edit_vid_{uuid.uuid4().hex}_{video.filename}")
+    with open(vid_path, "wb") as f:
+        f.write(await video.read())
+        
+    aud_path = ""
+    if audio:
+        aud_path = os.path.join(UPLOADS_DIR, f"edit_aud_{uuid.uuid4().hex}_{audio.filename}")
+        with open(aud_path, "wb") as f:
+            f.write(await audio.read())
+            
+    job_id = job_manager.create_job("media_video_edit", {"prompt": prompt})
+    background_tasks.add_task(process_media_video_edit_task, job_id, vid_path, aud_path, prompt)
+    return {"job_id": job_id}
+
+
+@app.post("/api/media/video/shorts")
+async def video_shorts_endpoint(background_tasks: BackgroundTasks, prompt: str = Form(""), video: UploadFile = File(...), auth = Depends(flexible_auth)):
+    vid_path = os.path.join(UPLOADS_DIR, f"shorts_vid_{uuid.uuid4().hex}_{video.filename}")
+    with open(vid_path, "wb") as f:
+        f.write(await video.read())
+        
+    job_id = job_manager.create_job("media_video_shorts", {"prompt": prompt})
+    background_tasks.add_task(process_media_video_shorts_task, job_id, vid_path, prompt)
+    return {"job_id": job_id}
+
+@app.post("/api/media/video/analyze")
+async def video_analyze_endpoint(background_tasks: BackgroundTasks, prompt: str = Form(""), video: UploadFile = File(...), auth = Depends(flexible_auth)):
+    vid_path = os.path.join(UPLOADS_DIR, f"analyze_vid_{uuid.uuid4().hex}_{video.filename}")
+    with open(vid_path, "wb") as f:
+        f.write(await video.read())
+        
+    job_id = job_manager.create_job("media_video_analyze", {"prompt": prompt})
+    background_tasks.add_task(process_media_video_analyze_task, job_id, vid_path, prompt)
+    return {"job_id": job_id}
+
 @app.post("/api/llm/chat")
 async def chat_endpoint(req: ChatRequest, background_tasks: BackgroundTasks, auth = Depends(flexible_auth)):
     job_id = job_manager.create_job("llm", {"prompt": req.prompt})
@@ -234,6 +372,21 @@ async def unregister(request: Request):
     return {"status": "success", "redirect": "/oauth2/sign_out"}
 
 @app.get("/", response_class=HTMLResponse)
+async def serve_landing(request: Request):
+    user_email = request.headers.get("X-Email", "Guest")
+    pref_user = request.headers.get("X-Preferred-Username")
+    user_name = pref_user or (user_email.split("@")[0] if "@" in user_email else "User")
+    user_image = request.headers.get("X-User-Image") or request.headers.get("X-Auth-Request-Image")
+    
+    context = {
+        "request": request,
+        "user_email": user_email,
+        "user_name": user_name,
+        "user_image": user_image
+    }
+    return templates.TemplateResponse(request, "landing.html", context)
+
+@app.get("/llm", response_class=HTMLResponse)
 async def serve_ui(request: Request):
     try:
         # Detailed Header Logging (sanitized for sensitive info)

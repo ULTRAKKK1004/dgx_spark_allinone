@@ -144,6 +144,42 @@ async def edit_image_endpoint(prompt: str = Form(...), image: UploadFile = File(
     job_id = await job_queue.submit("media_image_edit", {"prompt": prompt}, coro)
     return {"job_id": job_id}
 
+@app.post("/api/media/image/control")
+async def control_image_endpoint(
+    prompt: str = Form(...),
+    control_type: str = Form("canny"),
+    strength: float = Form(0.7),
+    control_image: UploadFile = File(...),
+    auth = Depends(flexible_auth),
+):
+    img_path = os.path.join(UPLOADS_DIR, f"ctrl_in_{uuid.uuid4().hex}_{control_image.filename}")
+    with open(img_path, "wb") as f:
+        f.write(await control_image.read())
+    coro = media_image.control_image(prompt, img_path, control_type=control_type, strength=strength)
+    job_id = await job_queue.submit(
+        "media_image_control",
+        {"prompt": prompt, "control_type": control_type, "strength": strength},
+        coro,
+    )
+    return {"job_id": job_id}
+
+@app.post("/api/media/image/inpaint")
+async def inpaint_image_endpoint(
+    prompt: str = Form(...),
+    image: UploadFile = File(...),
+    mask: UploadFile = File(...),
+    auth = Depends(flexible_auth),
+):
+    img_path = os.path.join(UPLOADS_DIR, f"inp_img_{uuid.uuid4().hex}_{image.filename}")
+    msk_path = os.path.join(UPLOADS_DIR, f"inp_msk_{uuid.uuid4().hex}_{mask.filename}")
+    with open(img_path, "wb") as f:
+        f.write(await image.read())
+    with open(msk_path, "wb") as f:
+        f.write(await mask.read())
+    coro = media_image.inpaint_image(img_path, msk_path, prompt)
+    job_id = await job_queue.submit("media_image_inpaint", {"prompt": prompt}, coro)
+    return {"job_id": job_id}
+
 @app.post("/api/media/music")
 async def generate_music_endpoint(prompt: str = Form(...), duration: int = Form(10), auth = Depends(flexible_auth)):
     if duration > 30:

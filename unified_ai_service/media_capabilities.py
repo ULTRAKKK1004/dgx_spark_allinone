@@ -1,0 +1,133 @@
+"""Supported multimodal actions and planner-facing capability prompt."""
+from __future__ import annotations
+
+from typing import Any
+
+
+CAPABILITIES: dict[str, dict[str, Any]] = {
+    "text.generate": {
+        "kind": "text",
+        "description": "Generate or rewrite text with the local LLM.",
+        "inputs": {"prompt": "string", "system_prompt": "optional string"},
+        "outputs": {"text": "string"},
+    },
+    "ppt.generate": {
+        "kind": "document",
+        "description": "Create a PowerPoint deck from a topic or outline.",
+        "inputs": {"topic": "string"},
+        "outputs": {"ppt": "pptx file url"},
+    },
+    "image.generate": {
+        "kind": "image",
+        "description": "Generate an image from text. Workflows: zimage_turbo, flux.",
+        "inputs": {"prompt": "string", "workflow": "optional string"},
+        "outputs": {"image": "image file url"},
+    },
+    "image.edit": {
+        "kind": "image",
+        "description": "Edit an uploaded image with an instruction.",
+        "inputs": {"image": "asset alias or prior output", "prompt": "string"},
+        "outputs": {"image": "image file url"},
+    },
+    "image.control": {
+        "kind": "image",
+        "description": "Generate image using FLUX ControlNet with canny/openpose/depth/scribble.",
+        "inputs": {
+            "control_image": "asset alias",
+            "prompt": "string",
+            "control_type": "optional string",
+            "strength": "optional float",
+        },
+        "outputs": {"image": "image file url"},
+    },
+    "image.inpaint": {
+        "kind": "image",
+        "description": "Inpaint or remove a masked region from an uploaded image.",
+        "inputs": {"image": "asset alias", "mask": "asset alias", "prompt": "string"},
+        "outputs": {"image": "image file url"},
+    },
+    "image.analyze": {
+        "kind": "image",
+        "description": "Analyze an uploaded image with the VLM.",
+        "inputs": {"image": "asset alias or prior output", "prompt": "string"},
+        "outputs": {"text": "string"},
+    },
+    "audio.music": {
+        "kind": "audio",
+        "description": "Generate short or long background music.",
+        "inputs": {"prompt": "string", "duration": "optional integer seconds"},
+        "outputs": {"audio": "audio file url"},
+    },
+    "audio.transcribe": {
+        "kind": "audio",
+        "description": "Transcribe uploaded audio using local Whisper.",
+        "inputs": {"audio": "asset alias", "language": "optional string"},
+        "outputs": {"text": "string"},
+    },
+    "voice.tts": {
+        "kind": "voice",
+        "description": "Generate spoken narration from text using local F5-TTS or ElevenLabs when configured.",
+        "inputs": {
+            "text": "string",
+            "provider": "optional auto|local_f5|elevenlabs",
+            "voice": "optional string",
+        },
+        "outputs": {"audio": "audio file url"},
+    },
+    "video.generate": {
+        "kind": "video",
+        "description": "Generate long i2v video from an uploaded base image using Wan2.2 moving window.",
+        "inputs": {"image": "asset alias", "prompt": "string", "duration": "optional integer seconds"},
+        "outputs": {"video": "video file url"},
+    },
+    "video.edit": {
+        "kind": "video",
+        "description": "Edit uploaded video with optional audio overlay.",
+        "inputs": {"video": "asset alias", "audio": "optional asset alias", "prompt": "optional string"},
+        "outputs": {"video": "video file url"},
+    },
+    "video.analyze": {
+        "kind": "video",
+        "description": "Analyze a video with sampled keyframes and the VLM.",
+        "inputs": {"video": "asset alias", "prompt": "string"},
+        "outputs": {"text": "string"},
+    },
+    "video.shorts": {
+        "kind": "video",
+        "description": "Create a short vertical clip from an uploaded video.",
+        "inputs": {"video": "asset alias", "prompt": "optional string"},
+        "outputs": {"video": "video file url"},
+    },
+    "video.lipsync": {
+        "kind": "video",
+        "description": "Lip-sync a presenter video to narration. Registered now; full engine lands in Phase B4.",
+        "inputs": {"video": "asset alias", "audio": "asset alias"},
+        "outputs": {"video": "video file url"},
+    },
+    "package.bundle": {
+        "kind": "package",
+        "description": "Bundle multiple prior outputs into a manifest result.",
+        "inputs": {"items": "list of aliases"},
+        "outputs": {"manifest": "json object"},
+    },
+}
+
+SUPPORTED_ACTIONS = set(CAPABILITIES)
+
+
+def get_action(action: str) -> dict[str, Any]:
+    return CAPABILITIES[action]
+
+
+def planner_prompt() -> str:
+    lines = [
+        "You are a multimodal media planner.",
+        "Return JSON only. Do not use markdown fences.",
+        "Unsupported actions are invalid.",
+        "Schema: {version:'1', goal:string, quality:'draft|standard|high', steps:[{id, action, inputs, outputs}], final:{primary, format}}",
+        "Available actions:",
+    ]
+    for name in sorted(CAPABILITIES):
+        cap = CAPABILITIES[name]
+        lines.append(f"- {name}: {cap['description']} Inputs={cap['inputs']} Outputs={cap['outputs']}")
+    return "\n".join(lines)

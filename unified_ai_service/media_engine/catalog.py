@@ -138,6 +138,9 @@ WORKFLOWS: dict[str, dict[str, Any]] = {
         "output_node": "9",
         "vram_class": "heavy",
         "timeout_sec": 600,
+        "choices": {
+            "control_type": {"canny", "openpose", "depth", "scribble"},
+        },
     },
     "image.inpaint.qwen": {
         "template": "image_inpaint_qwen.json.j2",
@@ -193,6 +196,12 @@ def validate(meta: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
     extra = set(params) - set(spec)
     if extra:
         raise ValueError(f"unknown params: {sorted(extra)}")
+
+    choices = meta.get("choices", {})
+    for name, allowed in choices.items():
+        if name in out and out[name] not in allowed:
+            allowed_text = "|".join(sorted(str(v) for v in allowed))
+            raise ValueError(f"param {name!r}: must be one of {allowed_text}")
     return out
 
 

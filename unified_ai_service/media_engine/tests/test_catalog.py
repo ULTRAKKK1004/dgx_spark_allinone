@@ -110,3 +110,13 @@ def test_qwen_inpaint_metadata():
 def test_list_workflows_includes_b1a_additions():
     ids = set(catalog.list_workflows())
     assert {"image.gen.flux", "image.ctrl.flux_union", "image.inpaint.qwen"}.issubset(ids)
+
+
+def test_flux_ctrl_union_rejects_unknown_control_type():
+    meta = catalog.get("image.ctrl.flux_union")
+    with pytest.raises(ValueError, match="control_type"):
+        catalog.validate(meta, {
+            "prompt": "p",
+            "control_image": "ctrl.png",
+            "control_type": "not-real",
+        })

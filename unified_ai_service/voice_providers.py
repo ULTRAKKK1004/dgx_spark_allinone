@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,10 @@ def _public_url(path: str) -> str:
     return f"/api/results/{os.path.basename(path)}"
 
 
+def local_f5_available() -> bool:
+    return shutil.which("f5-tts_infer-cli") is not None
+
+
 def choose_provider(requested: str = "auto", quality: str = "standard") -> str:
     requested = requested or "auto"
     if requested not in {"auto", "local_f5", "elevenlabs"}:
@@ -35,7 +40,7 @@ def choose_provider(requested: str = "auto", quality: str = "standard") -> str:
     if requested != "auto":
         return requested
     has_elevenlabs = bool(os.getenv("ELEVENLABS_API_KEY") and os.getenv("ELEVENLABS_VOICE_ID"))
-    if quality == "high" and has_elevenlabs:
+    if has_elevenlabs and (quality == "high" or not local_f5_available()):
         return "elevenlabs"
     return "local_f5"
 

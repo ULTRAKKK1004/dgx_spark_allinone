@@ -18,6 +18,21 @@ def test_choose_provider_auto_with_key_and_high_quality_uses_elevenlabs(monkeypa
     assert voice_providers.choose_provider("auto", quality="high") == "elevenlabs"
 
 
+def test_choose_provider_auto_with_key_and_missing_local_uses_elevenlabs(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "key")
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "voice")
+    monkeypatch.setattr(voice_providers, "local_f5_available", lambda: False)
+
+    assert voice_providers.choose_provider("auto", quality="draft") == "elevenlabs"
+
+
+def test_choose_provider_auto_without_key_and_missing_local_keeps_local_for_clear_error(monkeypatch):
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.setattr(voice_providers, "local_f5_available", lambda: False)
+
+    assert voice_providers.choose_provider("auto", quality="draft") == "local_f5"
+
+
 def test_split_text_preserves_all_content():
     text = "첫 문장입니다. 둘째 문장입니다.\n\n새 문단입니다."
 

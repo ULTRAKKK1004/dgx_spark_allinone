@@ -77,6 +77,30 @@ vid = await runner.run("video.i2v.wan22", prompt="gentle motion", image_name="se
 
 자동 다운로드: `unified_ai_service/scripts/download_b1a_models.sh`
 
+## Phase B Core 산출 (2026-05-23)
+
+- 신규 endpoint:
+  - `POST /api/multimodal/execute`
+- 입력:
+  - `instruction`: 자연어 작업 지시
+  - `quality`: `draft` / `standard` / `high`
+  - `preferred_voice_provider`: `auto` / `local_f5` / `elevenlabs`
+  - `files`: 이미지, 오디오, 비디오 첨부 파일 목록
+- 내부 동작:
+  - LLM planner가 `MediaPlan` JSON 생성
+  - invalid planner output 또는 vLLM unavailable 시 rule-based fallback
+  - `multimodal_executor`가 step을 순차 실행
+  - job result에 실행 plan, step 결과, final 결과 저장
+- ElevenLabs 설정:
+  - `ELEVENLABS_API_KEY`: ElevenLabs API key
+  - `ELEVENLABS_VOICE_ID`: 기본 voice id
+  - `ELEVENLABS_MODEL_ID`: 기본 `eleven_multilingual_v2`
+  - `ELEVENLABS_OUTPUT_FORMAT`: 기본 `mp3_44100_128`
+- 로컬 fallback:
+  - key가 없으면 `auto` provider는 `local_f5`로 실행
+  - ElevenLabs 장애 시 `auto`는 로컬 fallback
+  - `preferred_voice_provider=elevenlabs`로 강제했을 때만 ElevenLabs 실패가 job 실패가 됨
+
 ## 알려진 한계 (Phase B에서 개선)
 
 - **첫 실행 cold start**: ComfyUI가 모델을 처음 로드할 때 light 워크플로우도 60-90초 걸릴 수 있어 catalog의 `timeout_sec: 90`을 초과할 수 있음. 해결안: `timeout_sec` 상향(180s), 또는 서비스 기동 시 더미 prompt로 워밍업.

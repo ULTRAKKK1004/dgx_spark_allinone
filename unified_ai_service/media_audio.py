@@ -186,3 +186,31 @@ async def generate_tts_with_effects(text: str, ref_audio: str, ref_text: str, ou
     final_audio.export(output_path, format="wav")
     logger.info(f"Final TTS with effects saved to {output_path}")
     return output_path
+
+
+# ─── 긴 오디오 생성 (moving window, Phase B2에서 확장 예정) ──────────────
+async def generate_long_music(prompt: str, total_duration_sec: int = 30) -> str:
+    """긴 음악 생성 (moving window).
+
+    Phase A에서는 10초 청크로 분할 생성 후 crossfade로 단순 연결.
+    Phase B2에서 더 큰 MusicGen 모델로 교체 예정.
+    """
+    from media_engine import window
+    import os, uuid
+    chunk_sec = 10
+    chunks_needed = max(1, total_duration_sec // chunk_sec)
+    paths = []
+    for i in range(chunks_needed):
+        out_path = os.path.join(BASE_DIR, "results", f"music_chunk_{uuid.uuid4().hex[:6]}_{i}.wav")
+        await generate_music(prompt, duration=chunk_sec, output_path=out_path)
+        paths.append(out_path)
+    if len(paths) == 1:
+        return paths[0]
+    final = os.path.join(BASE_DIR, "results", f"music_long_{uuid.uuid4().hex[:8]}.wav")
+    await window.crossfade_audio_segments(paths, overlap_ms=500, output_path=final)
+    for p in paths:
+        try:
+            os.unlink(p)
+        except Exception:
+            pass
+    return final

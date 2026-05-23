@@ -1,0 +1,108 @@
+{
+  "unet_high": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "unet_low": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "model_sampling": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": {
+      "model": ["unet_high", 0],
+      "shift": 8.0
+    }
+  },
+  "vae": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    }
+  },
+  "clip": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    }
+  },
+  "load_image": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": {{ image_name | tojson }},
+      "upload": "image"
+    }
+  },
+  "pos": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": {{ prompt | tojson }},
+      "clip": ["clip", 0]
+    }
+  },
+  "neg": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "low quality, blurry, distorted, static, jpeg artifacts",
+      "clip": ["clip", 0]
+    }
+  },
+  "i2v": {
+    "class_type": "WanImageToVideo",
+    "inputs": {
+      "positive": ["pos", 0],
+      "negative": ["neg", 0],
+      "vae": ["vae", 0],
+      "start_image": ["load_image", 0],
+      "width": {{ width }},
+      "height": {{ height }},
+      "length": {{ frames }},
+      "batch_size": 1
+    }
+  },
+  "sampler": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["model_sampling", 0],
+      "positive": ["i2v", 0],
+      "negative": ["i2v", 1],
+      "latent_image": ["i2v", 2],
+      "seed": {{ seed }},
+      "steps": {{ steps }},
+      "cfg": 1.0,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 1.0
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["sampler", 0],
+      "vae": ["vae", 0]
+    }
+  },
+  "combine": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["decode", 0],
+      "frame_rate": 16.0,
+      "loop_count": 0,
+      "filename_prefix": "wan22_i2v",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

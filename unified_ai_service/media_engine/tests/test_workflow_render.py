@@ -65,3 +65,29 @@ def test_qwen_edit_denoise_applied():
         if v.get("class_type") == "KSampler"
     )
     assert abs(sampler_node["inputs"]["denoise"] - 0.5) < 1e-6
+
+
+def test_wan22_i2v_renders_valid_json():
+    meta = catalog.get("video.i2v.wan22")
+    params = catalog.validate(meta, {
+        "prompt": "camera slowly pans right",
+        "image_name": "start_frame.png",
+    })
+    wf = _render(meta["template"], params)
+    assert isinstance(wf, dict)
+    assert meta["output_node"] in wf
+    flat = json.dumps(wf, ensure_ascii=False)
+    assert "camera slowly pans right" in flat
+    assert "start_frame.png" in flat
+
+
+def test_wan22_i2v_frames_match():
+    meta = catalog.get("video.i2v.wan22")
+    params = catalog.validate(meta, {
+        "prompt": "p",
+        "image_name": "x.png",
+        "frames": 65,
+    })
+    wf = _render(meta["template"], params)
+    flat = json.dumps(wf)
+    assert '"length": 65' in flat or '"length":65' in flat

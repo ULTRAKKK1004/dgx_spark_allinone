@@ -96,8 +96,12 @@ vid = await runner.run("video.i2v.wan22", prompt="gentle motion", image_name="se
   - `ELEVENLABS_VOICE_ID`: 기본 voice id
   - `ELEVENLABS_MODEL_ID`: 기본 `eleven_multilingual_v2`
   - `ELEVENLABS_OUTPUT_FORMAT`: 기본 `mp3_44100_128`
+- 안정성 설정:
+  - `MULTIMODAL_PLANNER_TIMEOUT`: LLM planner 최대 대기 시간. 기본 `8`초
+  - `MULTIMODAL_LLM_STEP_TIMEOUT`: LLM 기반 실행 step 최대 대기 시간. 기본 `20`초
 - 로컬 fallback:
   - key가 없으면 `auto` provider는 `local_f5`로 실행
+  - `f5-tts_infer-cli`가 없고 ElevenLabs key/voice가 있으면 `auto` provider는 ElevenLabs로 자동 전환
   - ElevenLabs 장애 시 `auto`는 로컬 fallback
   - `preferred_voice_provider=elevenlabs`로 강제했을 때만 ElevenLabs 실패가 job 실패가 됨
 

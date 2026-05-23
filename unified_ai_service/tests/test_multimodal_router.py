@@ -45,6 +45,21 @@ async def test_router_falls_back_on_invalid_json(monkeypatch):
     assert plan.steps[0].action == "voice.tts"
 
 
+@pytest.mark.asyncio
+async def test_router_falls_back_when_llm_planner_times_out(monkeypatch):
+    async def slow_generate_text(prompt, system_prompt):
+        import asyncio
+
+        await asyncio.sleep(1)
+        return "{}"
+
+    monkeypatch.setattr(multimodal_router.llm_service, "generate_text", slow_generate_text)
+
+    plan = await multimodal_router.plan_request("강의 음성으로 읽어줘", assets=[], planner_timeout_sec=0.01)
+
+    assert plan.steps[0].action == "voice.tts"
+
+
 def test_rule_fallback_maps_image_analysis():
     asset = MediaAsset(alias="image_1", path="/tmp/a.png", mime_type="image/png")
 

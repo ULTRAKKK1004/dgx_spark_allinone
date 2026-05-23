@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import asyncio
 from typing import Any
 
 import llm_service
@@ -29,9 +31,16 @@ async def plan_request(
     assets: list[MediaAsset],
     quality: str = "standard",
     preferred_voice_provider: str = "auto",
+    planner_timeout_sec: float | None = None,
 ) -> MediaPlan:
     try:
-        raw = await _llm_plan(instruction, assets, quality, preferred_voice_provider)
+        timeout = planner_timeout_sec
+        if timeout is None:
+            timeout = float(os.getenv("MULTIMODAL_PLANNER_TIMEOUT", "8"))
+        raw = await asyncio.wait_for(
+            _llm_plan(instruction, assets, quality, preferred_voice_provider),
+            timeout=timeout,
+        )
         return MediaPlan.from_dict(
             raw,
             supported_actions=SUPPORTED_ACTIONS,

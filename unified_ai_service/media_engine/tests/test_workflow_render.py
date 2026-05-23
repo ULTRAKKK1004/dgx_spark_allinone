@@ -132,6 +132,17 @@ def test_flux_ctrl_union_canny():
     assert "FLUX.1-dev-ControlNet-Union-Pro.safetensors" in flat
 
 
+def test_flux_ctrl_union_maps_api_type_to_comfyui_enum():
+    meta = catalog.get("image.ctrl.flux_union")
+    params = catalog.validate(meta, {
+        "prompt": "edge-controlled portrait",
+        "control_image": "ctrl_in.png",
+        "control_type": "canny",
+    })
+    wf = _render(meta["template"], params)
+    assert wf["6"]["inputs"]["type"] == "canny/lineart/anime_lineart/mlsd"
+
+
 def test_flux_ctrl_union_openpose_changes_mode():
     meta = catalog.get("image.ctrl.flux_union")
     p_canny = catalog.validate(meta, {"prompt": "p", "control_image": "x.png", "control_type": "canny"})

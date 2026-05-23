@@ -11,6 +11,10 @@ def _reset_state():
     ga._state = "running"
 
 
+def test_default_vllm_resume_timeout_covers_cold_load():
+    assert ga.VLLM_RESUME_TIMEOUT >= 300
+
+
 @pytest.mark.asyncio
 async def test_light_does_not_lock(monkeypatch):
     """light 작업은 lock 없이 통과하고 vLLM은 그대로 running."""

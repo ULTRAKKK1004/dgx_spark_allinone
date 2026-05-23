@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 VLLM_CONTAINER = os.getenv("VLLM_CONTAINER", "vllm-server")
 VLLM_URL = os.getenv("VLLM_URL", "http://localhost:8080/v1")
-VLLM_RESUME_TIMEOUT = int(os.getenv("VLLM_RESUME_TIMEOUT", "90"))
+VLLM_RESUME_TIMEOUT = int(os.getenv("VLLM_RESUME_TIMEOUT", "420"))
 
 _lock = asyncio.Lock()
 _state = "running"  # "running" | "paused" | "restarting" | "unhealthy"

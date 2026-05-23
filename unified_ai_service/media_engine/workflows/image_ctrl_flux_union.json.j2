@@ -1,3 +1,9 @@
+{% set control_type_map = {
+  "canny": "canny/lineart/anime_lineart/mlsd",
+  "openpose": "openpose",
+  "depth": "depth",
+  "scribble": "hed/pidi/scribble/ted"
+} %}
 {
   "1": {
     "class_type": "UNETLoader",
@@ -37,7 +43,7 @@
     "class_type": "SetUnionControlNetType",
     "inputs": {
       "control_net": ["4", 0],
-      "type": {{ control_type | tojson }}
+      "type": {{ control_type_map[control_type] | tojson }}
     }
   },
   "7": {

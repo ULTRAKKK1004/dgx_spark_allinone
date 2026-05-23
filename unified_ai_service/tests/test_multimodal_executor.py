@@ -73,3 +73,19 @@ async def test_path_result_is_converted_to_url(tmp_path):
     normalized = multimodal_executor._normalize_result({"image": result_path})
 
     assert normalized["image"] == "/api/results/x.png"
+
+
+@pytest.mark.asyncio
+async def test_text_generate_handler_times_out(monkeypatch):
+    import asyncio
+    import llm_service
+
+    async def slow_generate_text(prompt, system_prompt):
+        await asyncio.sleep(1)
+        return "late"
+
+    monkeypatch.setattr(llm_service, "generate_text", slow_generate_text)
+    monkeypatch.setenv("MULTIMODAL_LLM_STEP_TIMEOUT", "0.01")
+
+    with pytest.raises(TimeoutError):
+        await multimodal_executor._handle_text_generate({"prompt": "x"}, multimodal_executor.ExecutionContext([], "draft"))

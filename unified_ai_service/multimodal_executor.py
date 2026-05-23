@@ -1,6 +1,7 @@
 """Sequential executor for validated MediaPlan objects."""
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
@@ -118,9 +119,12 @@ def _path_to_url_or_str(value: str) -> str:
 async def _handle_text_generate(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
     import llm_service
 
-    text = await llm_service.generate_text(
-        inputs.get("prompt", ""),
-        inputs.get("system_prompt", "You are a helpful multimodal media assistant."),
+    text = await _await_llm_step(
+        llm_service.generate_text(
+            inputs.get("prompt", ""),
+            inputs.get("system_prompt", "You are a helpful multimodal media assistant."),
+        ),
+        "text.generate",
     )
     return {"text": text}
 
@@ -130,7 +134,7 @@ async def _handle_ppt_generate(inputs: dict[str, Any], ctx: ExecutionContext) ->
     import ppt_service
 
     topic = inputs.get("topic", "")
-    slides = await llm_service.generate_ppt_structure(topic)
+    slides = await _await_llm_step(llm_service.generate_ppt_structure(topic), "ppt.generate")
     output_path = os.path.join(RESULTS_DIR, f"presentation_{uuid.uuid4().hex[:8]}.pptx")
     ppt_service.generate_ppt_file(topic, slides, output_path)
     return {"ppt": output_path}
@@ -176,7 +180,10 @@ async def _handle_image_analyze(inputs: dict[str, Any], ctx: ExecutionContext) -
     import llm_service
 
     data_url = _file_to_data_url(inputs["image"], fallback_mime="image/png")
-    text = await llm_service.analyze_image(data_url, inputs.get("prompt", "Analyze this image."))
+    text = await _await_llm_step(
+        llm_service.analyze_image(data_url, inputs.get("prompt", "Analyze this image.")),
+        "image.analyze",
+    )
     return {"text": text}
 
 
@@ -264,6 +271,14 @@ def _file_to_data_url(path: str, fallback_mime: str) -> str:
     with open(path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("utf-8")
     return f"data:{fallback_mime};base64,{encoded}"
+
+
+async def _await_llm_step(awaitable, label: str):
+    timeout = float(os.getenv("MULTIMODAL_LLM_STEP_TIMEOUT", "20"))
+    try:
+        return await asyncio.wait_for(awaitable, timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        raise TimeoutError(f"{label} exceeded {timeout:g}s") from exc
 
 
 ACTION_HANDLERS: dict[str, Handler] = {

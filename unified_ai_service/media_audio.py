@@ -188,6 +188,29 @@ async def generate_tts_with_effects(text: str, ref_audio: str, ref_text: str, ou
     return output_path
 
 
+async def synthesize_voice(
+    text: str,
+    ref_audio: str = "",
+    ref_text: str = "",
+    provider: str = "auto",
+    quality: str = "standard",
+    voice: str = "default",
+    output_path: str = None,
+) -> dict:
+    """Provider-aware TTS entry point used by the multimodal router."""
+    import voice_providers
+
+    return await voice_providers.synthesize_speech(
+        text,
+        provider=provider,
+        quality=quality,
+        voice=voice,
+        ref_audio=ref_audio,
+        ref_text=ref_text,
+        output_path=output_path,
+    )
+
+
 # ─── 긴 오디오 생성 (moving window, Phase B2에서 확장 예정) ──────────────
 async def generate_long_music(prompt: str, total_duration_sec: int = 30) -> str:
     """긴 음악 생성 (moving window).

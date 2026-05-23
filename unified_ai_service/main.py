@@ -26,6 +26,7 @@ import media_video
 import media_image
 import multimodal_router
 import multimodal_executor
+import voice_providers
 
 from media_engine import job_queue, gpu_arbiter
 from multimodal_models import MediaAsset
@@ -174,6 +175,7 @@ async def process_multimodal_task(
     assets: List[MediaAsset],
     quality: str,
     preferred_voice_provider: str,
+    preferred_voice: str = "default",
 ):
     try:
         job_manager.update_job(job_id, "processing")
@@ -182,6 +184,7 @@ async def process_multimodal_task(
             assets,
             quality=quality,
             preferred_voice_provider=preferred_voice_provider,
+            preferred_voice=preferred_voice,
         )
         result = await multimodal_executor.execute_plan(plan, assets)
         job_manager.update_job(job_id, "completed", result=result)
@@ -198,6 +201,7 @@ async def multimodal_execute_endpoint(
     instruction: str = Form(...),
     quality: str = Form("standard"),
     preferred_voice_provider: str = Form("auto"),
+    preferred_voice: str = Form("default"),
     files: Optional[List[UploadFile]] = File(None),
     auth = Depends(flexible_auth),
 ):
@@ -212,11 +216,22 @@ async def multimodal_execute_endpoint(
             "instruction": instruction,
             "quality": quality,
             "preferred_voice_provider": preferred_voice_provider,
+            "preferred_voice": preferred_voice,
             "assets": [asset.to_dict() for asset in assets],
         },
     )
-    background_tasks.add_task(process_multimodal_task, job_id, instruction, assets, quality, preferred_voice_provider)
+    background_tasks.add_task(process_multimodal_task, job_id, instruction, assets, quality, preferred_voice_provider, preferred_voice)
     return {"job_id": job_id}
+
+
+@app.get("/api/elevenlabs/voices")
+async def elevenlabs_voices_endpoint(auth = Depends(flexible_auth)):
+    voices = await voice_providers.list_elevenlabs_voices()
+    return {
+        "default_voice_id": voice_providers.get_elevenlabs_voice_id(),
+        "configured": bool(os.getenv("ELEVENLABS_API_KEY")),
+        "voices": voices,
+    }
 
 
 @app.post("/api/media/image")

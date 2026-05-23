@@ -298,6 +298,12 @@ async function submitMediaTask(type) {
                             <option value="local_f5">Local F5</option>
                             <option value="elevenlabs">ElevenLabs</option>
                         </select>
+                        <select id="multimodalVoice" class="rounded-xl px-4 py-3 text-sm min-w-56">
+                            <option value="airYK6ydeWdrJg6gyZA3">Default: airYK6ydeWdrJg6gyZA3</option>
+                        </select>
+                        <button onclick="loadElevenLabsVoices()" class="rounded-xl px-4 py-3 text-sm bg-slate-800 hover:bg-slate-700 text-white font-bold transition">
+                            <i class="fas fa-rotate"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -608,6 +614,32 @@ async function submitMediaTask(type) {
             label.textContent = Array.from(files).map(file => file.name).join(', ');
         }
 
+        async function loadElevenLabsVoices() {
+            const select = document.getElementById('multimodalVoice');
+            const previousValue = select.value;
+            select.innerHTML = '<option value="airYK6ydeWdrJg6gyZA3">Default: airYK6ydeWdrJg6gyZA3</option>';
+            try {
+                const res = await fetch('/api/elevenlabs/voices');
+                const data = await res.json();
+                const voices = data.voices || [];
+                if (data.default_voice_id && data.default_voice_id !== 'airYK6ydeWdrJg6gyZA3') {
+                    select.innerHTML = `<option value="${escapeHtml(data.default_voice_id)}">Default: ${escapeHtml(data.default_voice_id)}</option>`;
+                }
+                voices.forEach(voice => {
+                    if (!voice.voice_id) return;
+                    const option = document.createElement('option');
+                    option.value = voice.voice_id;
+                    option.textContent = `${voice.name || 'Unnamed voice'} · ${voice.voice_id}`;
+                    select.appendChild(option);
+                });
+                if ([...select.options].some(option => option.value === previousValue)) {
+                    select.value = previousValue;
+                }
+            } catch(e) {
+                alert('Could not load ElevenLabs voices. Using default voice id.');
+            }
+        }
+
         async function runMultimodal() {
             const instruction = document.getElementById('multimodalInstruction').value.trim();
             if (!instruction) return alert('Enter a multimodal instruction');
@@ -616,6 +648,7 @@ async function submitMediaTask(type) {
             formData.append('instruction', instruction);
             formData.append('quality', document.getElementById('multimodalQuality').value);
             formData.append('preferred_voice_provider', document.getElementById('multimodalVoiceProvider').value);
+            formData.append('preferred_voice', document.getElementById('multimodalVoice').value || 'airYK6ydeWdrJg6gyZA3');
 
             const files = document.getElementById('multimodalFiles').files;
             for (const file of files) {

@@ -24,7 +24,7 @@ async def test_save_multimodal_uploads_assigns_aliases(tmp_path, monkeypatch):
 async def test_process_multimodal_task_updates_job(monkeypatch):
     updates = []
 
-    async def fake_plan_request(instruction, assets, quality, preferred_voice_provider):
+    async def fake_plan_request(instruction, assets, quality, preferred_voice_provider, preferred_voice="default"):
         from multimodal_models import MediaPlan
 
         return MediaPlan.from_dict(
@@ -50,3 +50,17 @@ async def test_process_multimodal_task_updates_job(monkeypatch):
     assert updates[0][0] == ("job1", "processing")
     assert updates[-1][0][0] == "job1"
     assert updates[-1][0][1] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_elevenlabs_voices_endpoint_returns_default_and_list(monkeypatch):
+    async def fake_list():
+        return [{"voice_id": "v1", "name": "Voice One", "category": "premade", "labels": {}}]
+
+    monkeypatch.setattr(main.voice_providers, "list_elevenlabs_voices", fake_list)
+    monkeypatch.setattr(main.voice_providers, "get_elevenlabs_voice_id", lambda: "airYK6ydeWdrJg6gyZA3")
+
+    result = await main.elevenlabs_voices_endpoint(auth="test")
+
+    assert result["default_voice_id"] == "airYK6ydeWdrJg6gyZA3"
+    assert result["voices"][0]["voice_id"] == "v1"

@@ -60,6 +60,19 @@ async def test_router_falls_back_when_llm_planner_times_out(monkeypatch):
     assert plan.steps[0].action == "voice.tts"
 
 
+def test_rule_fallback_passes_preferred_voice_to_tts_step():
+    plan = multimodal_router.fallback_plan(
+        "강의 음성으로 읽어줘",
+        [],
+        quality="high",
+        preferred_voice_provider="elevenlabs",
+        preferred_voice="voice123",
+    )
+
+    assert plan.steps[0].inputs["provider"] == "elevenlabs"
+    assert plan.steps[0].inputs["voice"] == "voice123"
+
+
 def test_rule_fallback_maps_image_analysis():
     asset = MediaAsset(alias="image_1", path="/tmp/a.png", mime_type="image/png")
 

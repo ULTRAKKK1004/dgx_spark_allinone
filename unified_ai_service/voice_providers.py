@@ -10,11 +10,15 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from dotenv import load_dotenv
 from pydub import AudioSegment
 
 
 BASE_DIR = "/home/yanus/unified_ai_service"
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
+DEFAULT_ELEVENLABS_VOICE_ID = "airYK6ydeWdrJg6gyZA3"
+
+load_dotenv("/home/yanus/.env")
 
 
 @dataclass(frozen=True)
@@ -33,13 +37,19 @@ def local_f5_available() -> bool:
     return shutil.which("f5-tts_infer-cli") is not None
 
 
+def get_elevenlabs_voice_id(voice: str = "default") -> str:
+    if voice and voice != "default":
+        return voice
+    return os.getenv("ELEVENLABS_VOICE_ID") or DEFAULT_ELEVENLABS_VOICE_ID
+
+
 def choose_provider(requested: str = "auto", quality: str = "standard") -> str:
     requested = requested or "auto"
     if requested not in {"auto", "local_f5", "elevenlabs"}:
         raise ValueError("provider must be auto, local_f5, or elevenlabs")
     if requested != "auto":
         return requested
-    has_elevenlabs = bool(os.getenv("ELEVENLABS_API_KEY") and os.getenv("ELEVENLABS_VOICE_ID"))
+    has_elevenlabs = bool(os.getenv("ELEVENLABS_API_KEY") and get_elevenlabs_voice_id())
     if has_elevenlabs and (quality == "high" or not local_f5_available()):
         return "elevenlabs"
     return "local_f5"
@@ -141,7 +151,7 @@ async def _synthesize_local_f5(text: str, ref_audio: str, ref_text: str, output_
 
 async def _synthesize_elevenlabs(text: str, output_path: str, voice: str = "default") -> str:
     api_key = os.getenv("ELEVENLABS_API_KEY")
-    voice_id = voice if voice and voice != "default" else os.getenv("ELEVENLABS_VOICE_ID")
+    voice_id = get_elevenlabs_voice_id(voice)
     if not api_key:
         raise RuntimeError("ELEVENLABS_API_KEY is not configured")
     if not voice_id:
@@ -190,3 +200,28 @@ async def _synthesize_elevenlabs(text: str, output_path: str, voice: str = "defa
                     os.unlink(path)
                 except OSError:
                     pass
+
+
+async def list_elevenlabs_voices() -> list[dict[str, Any]]:
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        return []
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.get(
+            "https://api.elevenlabs.io/v1/voices",
+            headers={"xi-api-key": api_key},
+        )
+        response.raise_for_status()
+    voices = response.json().get("voices", [])
+    compact: list[dict[str, Any]] = []
+    for voice in voices:
+        compact.append(
+            {
+                "voice_id": voice.get("voice_id", ""),
+                "name": voice.get("name", "Unnamed voice"),
+                "category": voice.get("category", ""),
+                "labels": voice.get("labels") or {},
+            }
+        )
+    return compact

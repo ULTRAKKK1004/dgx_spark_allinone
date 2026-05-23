@@ -119,6 +119,15 @@ curl https://tor-ai.com/api/jobs/<job_id> \
   -H "Authorization: Bearer $TOR_AI_TOKEN"
 ```
 
+ElevenLabs voice 목록:
+
+```bash
+curl https://tor-ai.com/api/elevenlabs/voices \
+  -H "Authorization: Bearer $TOR_AI_TOKEN"
+```
+
+응답의 `voices[].voice_id` 값을 `preferred_voice`로 전달하면 해당 voice로 TTS를 생성한다. 기본값은 `airYK6ydeWdrJg6gyZA3`.
+
 ## 알려진 한계 (Phase B에서 개선)
 
 - **첫 실행 cold start**: ComfyUI가 모델을 처음 로드할 때 light 워크플로우도 60-90초 걸릴 수 있어 catalog의 `timeout_sec: 90`을 초과할 수 있음. 해결안: `timeout_sec` 상향(180s), 또는 서비스 기동 시 더미 prompt로 워밍업.

@@ -11,6 +11,8 @@ def test_studio_exposes_multimodal_execute_form():
     assert 'id="multimodalFiles"' in html
     assert 'id="multimodalQuality"' in html
     assert 'id="multimodalVoiceProvider"' in html
+    assert 'id="multimodalVoice"' in html
+    assert "loadElevenLabsVoices()" in html
     assert "runMultimodal()" in html
 
 
@@ -21,7 +23,15 @@ def test_studio_calls_multimodal_execute_api():
     assert "formData.append('instruction'" in html
     assert "formData.append('quality'" in html
     assert "formData.append('preferred_voice_provider'" in html
+    assert "formData.append('preferred_voice'" in html
     assert "formData.append('files'" in html
+
+
+def test_studio_fetches_elevenlabs_voice_list():
+    html = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "/api/elevenlabs/voices" in html
+    assert "airYK6ydeWdrJg6gyZA3" in html
 
 
 def test_jobs_render_multimodal_results_as_links_and_plan():

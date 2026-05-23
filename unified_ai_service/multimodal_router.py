@@ -31,6 +31,7 @@ async def plan_request(
     assets: list[MediaAsset],
     quality: str = "standard",
     preferred_voice_provider: str = "auto",
+    preferred_voice: str = "default",
     planner_timeout_sec: float | None = None,
 ) -> MediaPlan:
     try:
@@ -38,7 +39,7 @@ async def plan_request(
         if timeout is None:
             timeout = float(os.getenv("MULTIMODAL_PLANNER_TIMEOUT", "8"))
         raw = await asyncio.wait_for(
-            _llm_plan(instruction, assets, quality, preferred_voice_provider),
+            _llm_plan(instruction, assets, quality, preferred_voice_provider, preferred_voice),
             timeout=timeout,
         )
         return MediaPlan.from_dict(
@@ -47,7 +48,7 @@ async def plan_request(
             asset_aliases={asset.alias for asset in assets},
         )
     except Exception:
-        return fallback_plan(instruction, assets, quality, preferred_voice_provider)
+        return fallback_plan(instruction, assets, quality, preferred_voice_provider, preferred_voice)
 
 
 async def _llm_plan(
@@ -55,6 +56,7 @@ async def _llm_plan(
     assets: list[MediaAsset],
     quality: str,
     preferred_voice_provider: str,
+    preferred_voice: str,
 ) -> dict[str, Any]:
     asset_lines = [
         f"- {asset.alias}: filename={asset.filename or asset.path}, mime={asset.mime_type}"
@@ -66,6 +68,7 @@ async def _llm_plan(
             "",
             f"Quality: {quality}",
             f"Preferred voice provider: {preferred_voice_provider}",
+            f"Preferred ElevenLabs voice id: {preferred_voice}",
             "Uploaded assets:",
             "\n".join(asset_lines) if asset_lines else "- none",
             "",
@@ -81,6 +84,7 @@ def fallback_plan(
     assets: list[MediaAsset],
     quality: str = "standard",
     preferred_voice_provider: str = "auto",
+    preferred_voice: str = "default",
 ) -> MediaPlan:
     low = instruction.lower()
     image_assets = [a for a in assets if a.mime_type.startswith("image/")]
@@ -98,7 +102,7 @@ def fallback_plan(
     elif _has_any(low, ["음성", "내레이션", "나레이션", "tts", "읽어", "말해"]):
         raw = _single(
             "voice.tts",
-            {"text": instruction, "provider": preferred_voice_provider},
+            {"text": instruction, "provider": preferred_voice_provider, "voice": preferred_voice},
             "audio",
             "voice",
             "audio",

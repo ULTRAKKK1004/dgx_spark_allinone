@@ -5,6 +5,12 @@ import pytest
 import voice_providers
 
 
+def test_default_elevenlabs_voice_id_is_user_requested_value(monkeypatch):
+    monkeypatch.delenv("ELEVENLABS_VOICE_ID", raising=False)
+
+    assert voice_providers.get_elevenlabs_voice_id() == "airYK6ydeWdrJg6gyZA3"
+
+
 def test_choose_provider_auto_without_key_uses_local(monkeypatch):
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
 
@@ -82,3 +88,44 @@ async def test_synthesize_forced_elevenlabs_failure_raises(monkeypatch, tmp_path
             provider="elevenlabs",
             output_path=str(tmp_path / "out.mp3"),
         )
+
+
+@pytest.mark.asyncio
+async def test_list_elevenlabs_voices_returns_compact_voice_list(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "voices": [
+                    {
+                        "voice_id": "v1",
+                        "name": "Voice One",
+                        "category": "cloned",
+                        "labels": {"language": "ko"},
+                    }
+                ]
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url, headers):
+            assert url == "https://api.elevenlabs.io/v1/voices"
+            assert headers["xi-api-key"] == "key"
+            return FakeResponse()
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "key")
+    monkeypatch.setattr(voice_providers.httpx, "AsyncClient", FakeClient)
+
+    voices = await voice_providers.list_elevenlabs_voices()
+
+    assert voices == [{"voice_id": "v1", "name": "Voice One", "category": "cloned", "labels": {"language": "ko"}}]

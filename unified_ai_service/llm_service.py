@@ -1,6 +1,7 @@
 import os
 import json
 from openai import AsyncOpenAI
+from media_engine import gpu_arbiter
 
 # vLLM setup - We assume vLLM will run locally on port 8080
 VLLM_URL = os.getenv("VLLM_URL", "http://localhost:8080/v1")
@@ -10,6 +11,11 @@ MODEL_NAME = os.getenv("LLM_MODEL_NAME", "google/gemma-4-26B-A4B-it")
 client = AsyncOpenAI(base_url=VLLM_URL, api_key=VLLM_API_KEY)
 
 async def generate_text(prompt: str, system_prompt: str = "You are a helpful assistant.") -> str:
+    if not gpu_arbiter.vllm_available():
+        return (
+            f"⏸️ LLM 일시 정지 중 (state={gpu_arbiter.state()}) — "
+            "GPU 미디어 작업 진행. 30~60초 후 다시 시도해주세요."
+        )
     try:
         response = await client.chat.completions.create(
             model=MODEL_NAME,
@@ -31,8 +37,11 @@ Each object should have a 'title' string and a 'points' array of strings.
 Example: [{"title": "Intro", "points": ["Welcome", "Overview"]}]
 Output ONLY valid JSON without markdown formatting."""
     
+    if not gpu_arbiter.vllm_available():
+        return [{"title": "LLM 일시 정지", "points": [f"state={gpu_arbiter.state()}"]}]
+
     prompt = f"Create a detailed 5-slide presentation about: {topic}"
-    
+
     content = await generate_text(prompt, sys_prompt)
     
     # Clean up response in case it includes markdown code blocks
@@ -53,6 +62,8 @@ async def analyze_image(image_url_or_base64: str, prompt: str) -> str:
     Function to use VLM capabilities.
     Requires an OpenAI-compatible server running a VLM (like Qwen2-VL or LLaVA).
     """
+    if not gpu_arbiter.vllm_available():
+        return f"⏸️ VLM 일시 정지 중 (state={gpu_arbiter.state()})"
     try:
         response = await client.chat.completions.create(
             model=MODEL_NAME,

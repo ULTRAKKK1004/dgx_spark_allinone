@@ -106,3 +106,52 @@ def test_wan22_s2v_renders_valid_json():
     flat = json.dumps(wf, ensure_ascii=False)
     assert "speech.wav" in flat
     assert "ref.png" in flat
+
+
+def test_flux_renders_valid_json():
+    meta = catalog.get("image.gen.flux")
+    params = catalog.validate(meta, {"prompt": "a futuristic city skyline"})
+    wf = _render(meta["template"], params)
+    assert isinstance(wf, dict)
+    assert meta["output_node"] in wf
+    flat = json.dumps(wf, ensure_ascii=False)
+    assert "a futuristic city skyline" in flat
+    assert "flux1-dev-fp8.safetensors" in flat
+
+
+def test_flux_ctrl_union_canny():
+    meta = catalog.get("image.ctrl.flux_union")
+    params = catalog.validate(meta, {
+        "prompt": "pose-controlled portrait",
+        "control_image": "ctrl_in.png",
+        "control_type": "canny",
+    })
+    wf = _render(meta["template"], params)
+    flat = json.dumps(wf, ensure_ascii=False)
+    assert "ctrl_in.png" in flat
+    assert "FLUX.1-dev-ControlNet-Union-Pro.safetensors" in flat
+
+
+def test_flux_ctrl_union_openpose_changes_mode():
+    meta = catalog.get("image.ctrl.flux_union")
+    p_canny = catalog.validate(meta, {"prompt": "p", "control_image": "x.png", "control_type": "canny"})
+    p_pose = catalog.validate(meta, {"prompt": "p", "control_image": "x.png", "control_type": "openpose"})
+    wf_canny = _render(meta["template"], p_canny)
+    wf_pose = _render(meta["template"], p_pose)
+    flat_canny = json.dumps(wf_canny)
+    flat_pose = json.dumps(wf_pose)
+    assert flat_canny != flat_pose, "control_type 변경이 워크플로우에 반영되어야 함"
+
+
+def test_qwen_inpaint_renders_valid_json():
+    meta = catalog.get("image.inpaint.qwen")
+    params = catalog.validate(meta, {
+        "prompt": "replace background with beach",
+        "image_name": "img.png",
+        "mask_name": "msk.png",
+    })
+    wf = _render(meta["template"], params)
+    flat = json.dumps(wf, ensure_ascii=False)
+    assert "img.png" in flat
+    assert "msk.png" in flat
+    assert "LoadImageMask" in flat

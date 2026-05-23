@@ -15,6 +15,9 @@
 ## 현재 등록 워크플로우
 
 - `image_gen_zimage_turbo.json.j2` — z_image_turbo (light, ~5초)
+- `image_gen_flux.json.j2` — FLUX dev fp8 text2img (heavy, ~5분)
 - `image_edit_qwen.json.j2` — Qwen Image Edit 2509 img2img/edit (heavy, ~60초)
+- `image_ctrl_flux_union.json.j2` — FLUX-ControlNet Union (heavy, ~5분)
+- `image_inpaint_qwen.json.j2` — Qwen Image Edit 마스크 inpaint (heavy, ~60초)
 - `video_i2v_wan22.json.j2` — Wan2.2 i2v 14B, 5초 청크 (heavy, ~5분)
 - `video_s2v_wan22.json.j2` — Wan2.2 s2v 14B 립싱크 (heavy, ~7분)

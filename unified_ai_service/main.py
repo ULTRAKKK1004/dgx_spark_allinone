@@ -24,8 +24,11 @@ import job_manager
 import media_audio
 import media_video
 import media_image
+import multimodal_router
+import multimodal_executor
 
 from media_engine import job_queue, gpu_arbiter
+from multimodal_models import MediaAsset
 
 
 app = FastAPI(title="AI Hub")
@@ -127,7 +130,94 @@ async def process_ppt_task(job_id: str, topic: str):
         job_manager.update_job(job_id, "failed", error=str(e))
 
 
+def _asset_alias_for_upload(index: int, upload: UploadFile) -> str:
+    mime = upload.content_type or "application/octet-stream"
+    if mime.startswith("image/"):
+        prefix = "image"
+    elif mime.startswith("audio/"):
+        prefix = "audio"
+    elif mime.startswith("video/"):
+        prefix = "video"
+    else:
+        prefix = "file"
+    return f"{prefix}_{index}"
+
+
+async def _save_multimodal_uploads(files: Optional[List[UploadFile]]) -> List[MediaAsset]:
+    assets: List[MediaAsset] = []
+    if not files:
+        return assets
+    counters = {"image": 0, "audio": 0, "video": 0, "file": 0}
+    for upload in files:
+        mime = upload.content_type or "application/octet-stream"
+        if mime.startswith("image/"):
+            kind = "image"
+        elif mime.startswith("audio/"):
+            kind = "audio"
+        elif mime.startswith("video/"):
+            kind = "video"
+        else:
+            kind = "file"
+        counters[kind] += 1
+        alias = f"{kind}_{counters[kind]}"
+        safe_name = os.path.basename(upload.filename or f"{alias}.bin")
+        path = os.path.join(UPLOADS_DIR, f"multi_{uuid.uuid4().hex}_{safe_name}")
+        with open(path, "wb") as f:
+            f.write(await upload.read())
+        assets.append(MediaAsset(alias=alias, path=path, mime_type=mime, filename=safe_name))
+    return assets
+
+
+async def process_multimodal_task(
+    job_id: str,
+    instruction: str,
+    assets: List[MediaAsset],
+    quality: str,
+    preferred_voice_provider: str,
+):
+    try:
+        job_manager.update_job(job_id, "processing")
+        plan = await multimodal_router.plan_request(
+            instruction,
+            assets,
+            quality=quality,
+            preferred_voice_provider=preferred_voice_provider,
+        )
+        result = await multimodal_executor.execute_plan(plan, assets)
+        job_manager.update_job(job_id, "completed", result=result)
+    except Exception as e:
+        logger.error("Multimodal job failed: %s", e, exc_info=True)
+        job_manager.update_job(job_id, "failed", error=str(e))
+
+
 # Endpoints
+
+@app.post("/api/multimodal/execute")
+async def multimodal_execute_endpoint(
+    background_tasks: BackgroundTasks,
+    instruction: str = Form(...),
+    quality: str = Form("standard"),
+    preferred_voice_provider: str = Form("auto"),
+    files: Optional[List[UploadFile]] = File(None),
+    auth = Depends(flexible_auth),
+):
+    if quality not in {"draft", "standard", "high"}:
+        raise HTTPException(status_code=400, detail="quality must be draft, standard, or high")
+    if preferred_voice_provider not in {"auto", "local_f5", "elevenlabs"}:
+        raise HTTPException(status_code=400, detail="preferred_voice_provider must be auto, local_f5, or elevenlabs")
+    assets = await _save_multimodal_uploads(files)
+    job_id = job_manager.create_job(
+        "multimodal",
+        {
+            "instruction": instruction,
+            "quality": quality,
+            "preferred_voice_provider": preferred_voice_provider,
+            "assets": [asset.to_dict() for asset in assets],
+        },
+    )
+    background_tasks.add_task(process_multimodal_task, job_id, instruction, assets, quality, preferred_voice_provider)
+    return {"job_id": job_id}
+
 
 @app.post("/api/media/image")
 async def generate_image_endpoint(prompt: str = Form(...), workflow: str = Form("zimage_turbo"), auth = Depends(flexible_auth)):

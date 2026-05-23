@@ -57,3 +57,21 @@ def test_check_models_present_returns_missing_list(tmp_path, monkeypatch):
     missing = catalog.check_models_present(meta)
     assert len(missing) > 0
     assert all(isinstance(m, str) for m in missing)
+
+
+def test_validate_rejects_unknown_params():
+    meta = catalog.get("image.gen.zimage_turbo")
+    with pytest.raises(ValueError, match="unknown params"):
+        catalog.validate(meta, {"prompt": "x", "wdith": 768})
+
+
+def test_validate_rejects_none_value():
+    meta = catalog.get("image.gen.zimage_turbo")
+    with pytest.raises(ValueError, match="cannot be None"):
+        catalog.validate(meta, {"prompt": None})
+
+
+def test_validate_rejects_bool_for_int():
+    meta = catalog.get("image.gen.zimage_turbo")
+    with pytest.raises(ValueError, match="bool not accepted"):
+        catalog.validate(meta, {"prompt": "x", "width": True})

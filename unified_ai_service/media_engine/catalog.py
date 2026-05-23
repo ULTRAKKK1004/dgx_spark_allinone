@@ -10,6 +10,7 @@
 """
 
 import os
+from pathlib import Path
 from typing import Any
 
 MODELS_ROOT = "/home/yanus/Docker/models"
@@ -107,17 +108,21 @@ def get(workflow_id: str) -> dict[str, Any]:
     return WORKFLOWS[workflow_id]
 
 
-def validate(meta: dict, params: dict) -> dict:
+def validate(meta: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
     """타입 강제·기본값 채움. 필수 누락/타입 변환 실패는 ValueError."""
     out: dict[str, Any] = {}
     spec = meta["params"]
     for name, (typ, default) in spec.items():
         if name in params:
             value = params[name]
+            if value is None:
+                raise ValueError(f"param {name!r}: cannot be None")
+            if isinstance(value, bool) and typ is int:
+                raise ValueError(f"param {name!r}: bool not accepted for int")
             try:
                 out[name] = typ(value)
             except (TypeError, ValueError) as e:
-                raise ValueError(f"param {name!r}: cannot coerce to {typ.__name__}: {e}")
+                raise ValueError(f"param {name!r}: cannot coerce to {typ.__name__}: {e}") from e
         elif default is Ellipsis:
             raise ValueError(f"missing required param: {name!r}")
         else:
@@ -128,11 +133,16 @@ def validate(meta: dict, params: dict) -> dict:
     return out
 
 
-def check_models_present(meta: dict) -> list[str]:
+def check_models_present(meta: dict[str, Any]) -> list[str]:
     """누락된 모델 파일의 상대경로 리스트 반환."""
-    missing = []
+    missing: list[str] = []
+    root = Path(MODELS_ROOT).resolve()
     for rel in meta["models_required"]:
-        path = os.path.join(MODELS_ROOT, rel)
-        if not os.path.exists(path):
+        if os.path.isabs(rel) or ".." in Path(rel).parts:
+            raise ValueError(f"models_required entry must be relative without '..': {rel!r}")
+        path = (root / rel).resolve()
+        if not path.is_relative_to(root):
+            raise ValueError(f"models_required escapes MODELS_ROOT: {rel!r}")
+        if not path.exists():
             missing.append(rel)
     return missing

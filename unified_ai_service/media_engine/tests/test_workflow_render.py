@@ -91,3 +91,18 @@ def test_wan22_i2v_frames_match():
     wf = _render(meta["template"], params)
     flat = json.dumps(wf)
     assert '"length": 65' in flat or '"length":65' in flat
+
+
+def test_wan22_s2v_renders_valid_json():
+    meta = catalog.get("video.s2v.wan22")
+    params = catalog.validate(meta, {
+        "prompt": "speaker in front of bookshelf",
+        "image_name": "ref.png",
+        "audio_name": "speech.wav",
+    })
+    wf = _render(meta["template"], params)
+    assert isinstance(wf, dict)
+    assert meta["output_node"] in wf
+    flat = json.dumps(wf, ensure_ascii=False)
+    assert "speech.wav" in flat
+    assert "ref.png" in flat

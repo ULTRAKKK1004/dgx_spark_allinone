@@ -1514,7 +1514,7 @@ async def acquire(vram_class: str):
                 yield
             finally:
                 # background에서 복구하여 잡 응답 시간이 증가하지 않게
-                asyncio.create_task(_resume_vllm())
+                await _resume_vllm()
     elif vram_class == "light":
         yield
     else:

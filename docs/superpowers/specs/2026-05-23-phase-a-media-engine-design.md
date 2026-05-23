@@ -144,7 +144,7 @@ async def acquire(vram_class: str):
             try:
                 yield
             finally:
-                asyncio.create_task(_resume_vllm())  # background restart
+                await _resume_vllm()  # inline: lock 유지된 채 재시작 완료 (race 회피)
     else:
         yield  # light 잡: lock 불필요
 

@@ -37,7 +37,7 @@ vid = await runner.run("video.i2v.wan22", prompt="gentle motion", image_name="se
 ```bash
 # 단위 (CI 가능, GPU 불필요)
 ./venv/bin/python -m pytest media_engine/tests/ -v
-# → 41 passed
+# → 50 passed, 6 skipped (--integration 필요)
 
 # 통합 (실제 GPU + ComfyUI + vLLM 필요, ~10-15분)
 ./venv/bin/python -m pytest media_engine/tests/integration -v --integration -s --timeout=1800
@@ -72,7 +72,7 @@ vid = await runner.run("video.i2v.wan22", prompt="gentle motion", image_name="se
   - `POST /api/media/image/control` (control_image + control_type)
   - `POST /api/media/image/inpaint` (image + mask)
   - `POST /api/media/image?workflow=flux` (기존 endpoint 옵션 추가)
-- 디스크 추가: FLUX fp8 (~17GB), FLUX-ControlNet-Union-Pro (~3GB)
+- 디스크 추가: FLUX fp8 (~17GB), FLUX text encoders (`clip_l` ~234MB, `t5xxl_fp8` ~4.6GB), FLUX-ControlNet-Union-Pro (~6GB)
 - Custom node: ComfyUI-controlnet-aux (canny/openpose/depth preprocessor)
 
 자동 다운로드: `unified_ai_service/scripts/download_b1a_models.sh`

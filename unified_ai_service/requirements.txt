@@ -1,10 +1,10 @@
 fastapi
 uvicorn
 python-multipart
-aiohttp
+aiohttp>=3.9
 python-pptx
 openai-whisper
 pydub
 openai
-jinja2
+jinja2>=3.1
 python-dotenv

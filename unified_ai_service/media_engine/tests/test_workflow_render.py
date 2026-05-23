@@ -36,3 +36,32 @@ def test_zimage_turbo_special_chars_escape():
     wf = _render(meta["template"], params)
     flat = json.dumps(wf)
     assert "tall" in flat
+
+
+def test_qwen_edit_renders_valid_json():
+    meta = catalog.get("image.edit.qwen")
+    params = catalog.validate(meta, {
+        "prompt": "make it night time",
+        "image_name": "uploaded_xyz.png",
+    })
+    wf = _render(meta["template"], params)
+    assert isinstance(wf, dict)
+    assert meta["output_node"] in wf
+    flat = json.dumps(wf, ensure_ascii=False)
+    assert "make it night time" in flat
+    assert "uploaded_xyz.png" in flat
+
+
+def test_qwen_edit_denoise_applied():
+    meta = catalog.get("image.edit.qwen")
+    params = catalog.validate(meta, {
+        "prompt": "p",
+        "image_name": "x.png",
+        "denoise": 0.5,
+    })
+    wf = _render(meta["template"], params)
+    sampler_node = next(
+        v for v in wf.values()
+        if v.get("class_type") == "KSampler"
+    )
+    assert abs(sampler_node["inputs"]["denoise"] - 0.5) < 1e-6

@@ -4,8 +4,8 @@
 
 ## 구성
 
-- **catalog.py** — 워크플로우 메타데이터 단일 출처 (5 워크플로우, 파라미터·모델·VRAM class·timeout)
-- **workflows/** — ComfyUI API JSON + Jinja 템플릿 (zimage_turbo / qwen_edit / wan22 i2v / wan22 s2v)
+- **catalog.py** — 워크플로우 메타데이터 단일 출처 (7 워크플로우, 파라미터·모델·VRAM class·timeout)
+- **workflows/** — ComfyUI API JSON + Jinja 템플릿 (zimage_turbo / flux / flux control / qwen_edit / qwen_inpaint / wan22 i2v / wan22 s2v)
 - **comfyui_client.py** — ComfyUI HTTP 클라이언트 (submit / poll history / upload, `ComfyUIError`)
 - **gpu_arbiter.py** — heavy 잡 직렬화 + vLLM `docker stop/start` swap (`acquire(vram_class)`, `vllm_available()`, `state()`)
 - **window.py** — 무빙윈도우 유틸 (`chunk_audio_fixed/smart`, `extract_last_frame`, `concat_videos`, `crossfade_audio_segments`, `get_media_duration`)
@@ -19,6 +19,9 @@ from media_engine import runner
 
 # 이미지 생성 (light, vLLM과 공존)
 img = await runner.run("image.gen.zimage_turbo", prompt="a cat", steps=4)
+
+# 고품질 이미지 생성 (heavy, vLLM swap)
+flux = await runner.run("image.gen.flux", prompt="a cinematic mountain lake")
 
 # 이미지 편집 (heavy, vLLM swap)
 edited = await runner.run("image.edit.qwen", prompt="make it night", image_name="uploaded.png")
@@ -45,7 +48,10 @@ vid = await runner.run("video.i2v.wan22", prompt="gentle motion", image_name="se
 | Method | Path | 워크플로우 |
 |---|---|---|
 | POST | `/api/media/image` | image.gen.zimage_turbo (default) |
+| POST | `/api/media/image?workflow=flux` | image.gen.flux (FLUX dev fp8) |
 | POST | `/api/media/image/edit` | image.edit.qwen (신규 — Phase A 산출) |
+| POST | `/api/media/image/control` | image.ctrl.flux_union (FLUX-ControlNet Union) |
+| POST | `/api/media/image/inpaint` | image.inpaint.qwen (Qwen + 마스크) |
 | POST | `/api/media/music` | MusicGen-small. `duration > 30` 이면 `generate_long_music` (moving window) |
 | POST | `/api/media/tts` | F5-TTS + SFX 태그 (기존) |
 | POST | `/api/media/video/gen` | video.i2v.wan22 + moving window |
@@ -55,6 +61,21 @@ vid = await runner.run("video.i2v.wan22", prompt="gentle motion", image_name="se
 | GET | `/api/health/vllm` | `{"state": "...", "available": bool}` |
 
 각 POST는 `{"job_id": "..."}` 반환. `GET /api/jobs/{job_id}` 로 진행/결과 폴링.
+
+## Phase B1a 산출 (2026-05-23)
+
+- 신규 워크플로우 3개:
+  - `image.gen.flux` — FLUX dev fp8 text2img (heavy, ~5분)
+  - `image.ctrl.flux_union` — FLUX-ControlNet-Union-Pro (canny/openpose/depth/scribble)
+  - `image.inpaint.qwen` — Qwen Image Edit + 마스크 inpaint
+- 신규 엔드포인트:
+  - `POST /api/media/image/control` (control_image + control_type)
+  - `POST /api/media/image/inpaint` (image + mask)
+  - `POST /api/media/image?workflow=flux` (기존 endpoint 옵션 추가)
+- 디스크 추가: FLUX fp8 (~17GB), FLUX-ControlNet-Union-Pro (~3GB)
+- Custom node: ComfyUI-controlnet-aux (canny/openpose/depth preprocessor)
+
+자동 다운로드: `unified_ai_service/scripts/download_b1a_models.sh`
 
 ## 알려진 한계 (Phase B에서 개선)
 

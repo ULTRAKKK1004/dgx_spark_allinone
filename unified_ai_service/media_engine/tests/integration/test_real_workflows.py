@@ -83,3 +83,68 @@ async def test_serialized_two_heavy_jobs():
         out1, out2 = await asyncio.gather(job(1), job(2))
         assert out1.exists() and out2.exists()
         assert out1 != out2
+
+
+
+@pytest.mark.asyncio
+async def test_flux_text2img_end_to_end():
+    """FLUX dev fp8 text2img — 1024x1024 20step, vLLM swap 1회."""
+    from media_engine import runner
+    out = await runner.run(
+        "image.gen.flux",
+        prompt="a serene mountain lake at sunset, photorealistic",
+        steps=20,
+    )
+    assert out.exists() and out.stat().st_size > 50_000
+
+
+@pytest.mark.asyncio
+async def test_flux_ctrl_canny_end_to_end(tmp_path):
+    """FLUX-ControlNet Union canny — 업로드된 canny edge 이미지로 합성."""
+    from media_engine import runner, comfyui_client
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (1024, 1024), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rectangle([200, 200, 800, 800], outline=(255, 255, 255), width=10)
+    ctrl_path = tmp_path / "canny.png"
+    img.save(ctrl_path)
+    await comfyui_client.upload_image(str(ctrl_path), "integ_canny.png")
+
+    out = await runner.run(
+        "image.ctrl.flux_union",
+        prompt="a glowing crystal cube floating in space",
+        control_image="integ_canny.png",
+        control_type="canny",
+        steps=20,
+    )
+    assert out.exists() and out.stat().st_size > 50_000
+
+
+@pytest.mark.asyncio
+async def test_qwen_inpaint_end_to_end(tmp_path):
+    """Qwen Edit 마스크 inpaint — 흰 사각형 마스크로 중앙 영역 교체."""
+    from media_engine import runner, comfyui_client
+    from PIL import Image, ImageDraw
+
+    base = Image.new("RGB", (1024, 1024), (100, 150, 100))
+    base_path = tmp_path / "base.png"
+    base.save(base_path)
+
+    mask = Image.new("RGB", (1024, 1024), (0, 0, 0))
+    d = ImageDraw.Draw(mask)
+    d.rectangle([300, 300, 700, 700], fill=(255, 255, 255))
+    mask_path = tmp_path / "mask.png"
+    mask.save(mask_path)
+
+    await comfyui_client.upload_image(str(base_path), "integ_inp_img.png")
+    await comfyui_client.upload_image(str(mask_path), "integ_inp_msk.png")
+
+    out = await runner.run(
+        "image.inpaint.qwen",
+        prompt="a vibrant red rose in the center",
+        image_name="integ_inp_img.png",
+        mask_name="integ_inp_msk.png",
+        steps=20,
+    )
+    assert out.exists() and out.stat().st_size > 50_000

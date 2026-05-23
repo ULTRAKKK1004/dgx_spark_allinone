@@ -275,6 +275,49 @@ async function submitMediaTask(type) {
                 </div>
             </div>
 
+            <!-- Multimodal Command Center -->
+            <div class="card-neo rounded-3xl p-7 space-y-5 border-t-4 border-t-blue-500">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                            <i class="fas fa-wand-magic-sparkles text-blue-400"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-bold">Multimodal AI</h2>
+                            <p class="text-xs text-slate-500 font-semibold">Route one request across image, audio, voice, video, PPT, and analysis tools.</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <select id="multimodalQuality" class="rounded-xl px-4 py-3 text-sm">
+                            <option value="standard">Standard</option>
+                            <option value="draft">Draft</option>
+                            <option value="high">High Quality</option>
+                        </select>
+                        <select id="multimodalVoiceProvider" class="rounded-xl px-4 py-3 text-sm">
+                            <option value="auto">Voice Auto</option>
+                            <option value="local_f5">Local F5</option>
+                            <option value="elevenlabs">ElevenLabs</option>
+                        </select>
+                    </div>
+                </div>
+
+                <textarea id="multimodalInstruction" rows="4" class="w-full rounded-2xl p-5 outline-none resize-none placeholder-slate-500" placeholder="예: 이 이미지를 분석해서 발표자료를 만들고, 자연스러운 강의 음성으로 읽어줘."></textarea>
+
+                <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-stretch">
+                    <label class="group relative bg-slate-950/50 border border-dashed border-white/10 rounded-2xl p-5 flex items-center justify-center hover:border-blue-400/60 transition cursor-pointer">
+                        <input type="file" id="multimodalFiles" multiple accept="image/*,audio/*,video/*,.pdf,.ppt,.pptx,.txt,.md" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="updateMultimodalFileLabel()">
+                        <div class="text-center">
+                            <i class="fas fa-paperclip text-2xl text-slate-500 group-hover:text-blue-400 mb-2 transition"></i>
+                            <p id="multimodalFileLabel" class="text-xs text-slate-400 group-hover:text-slate-200">Attach images, audio, video, or documents</p>
+                        </div>
+                    </label>
+                    <button id="btnMultimodal" onclick="runMultimodal()" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-3 transition">
+                        <span>Run Multimodal Task</span>
+                        <i class="fas fa-diagram-project text-sm"></i>
+                    </button>
+                </div>
+            </div>
+
             <!-- Multimodal Row -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <!-- Vision Card -->
@@ -377,6 +420,21 @@ async function submitMediaTask(type) {
                         </thead>
                         <tbody id="tokenTableBody" class="divide-y divide-white/5 bg-slate-900/30"></tbody>
                     </table>
+                </div>
+                <div class="bg-slate-950/60 rounded-2xl border border-white/5 p-6 space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-diagram-project text-blue-400"></i>
+                        <h3 class="text-xl font-bold">Multimodal Execute API</h3>
+                    </div>
+                    <p class="text-sm text-slate-400">Submit one natural-language instruction with optional files. Poll the returned job id from <code class="text-emerald-400">/api/jobs/{job_id}</code>.</p>
+                    <pre class="bg-black/40 rounded-xl p-4 overflow-x-auto text-xs text-slate-300"><code>curl -X POST https://tor-ai.com/api/multimodal/execute \
+  -H "Authorization: Bearer $TOR_AI_TOKEN" \
+  -F "instruction=이 이미지를 분석해서 발표자료를 만들고 강의 음성으로 읽어줘" \
+  -F "quality=high" \
+  -F "preferred_voice_provider=elevenlabs" \
+  -F "files=@./slide-source.png"</code></pre>
+                    <pre class="bg-black/40 rounded-xl p-4 overflow-x-auto text-xs text-slate-300"><code>curl https://tor-ai.com/api/jobs/&lt;job_id&gt; \
+  -H "Authorization: Bearer $TOR_AI_TOKEN"</code></pre>
                 </div>
             </div>
         </div>
@@ -540,6 +598,103 @@ async function submitMediaTask(type) {
             btn.disabled = false;
         }
 
+        function updateMultimodalFileLabel() {
+            const files = document.getElementById('multimodalFiles').files;
+            const label = document.getElementById('multimodalFileLabel');
+            if (!files || files.length === 0) {
+                label.textContent = 'Attach images, audio, video, or documents';
+                return;
+            }
+            label.textContent = Array.from(files).map(file => file.name).join(', ');
+        }
+
+        async function runMultimodal() {
+            const instruction = document.getElementById('multimodalInstruction').value.trim();
+            if (!instruction) return alert('Enter a multimodal instruction');
+
+            const formData = new FormData();
+            formData.append('instruction', instruction);
+            formData.append('quality', document.getElementById('multimodalQuality').value);
+            formData.append('preferred_voice_provider', document.getElementById('multimodalVoiceProvider').value);
+
+            const files = document.getElementById('multimodalFiles').files;
+            for (const file of files) {
+                formData.append('files', file);
+            }
+
+            const btn = document.getElementById('btnMultimodal');
+            const oldHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span> Planning...</span>';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/multimodal/execute', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.job_id) {
+                    showTab('tasks');
+                    pollJob(data.job_id);
+                } else {
+                    alert('Multimodal task failed to start: ' + JSON.stringify(data));
+                }
+            } catch(e) {
+                alert('Multimodal request failed: ' + e.message);
+            }
+
+            btn.innerHTML = oldHtml;
+            btn.disabled = false;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function renderResultValue(value) {
+            if (typeof value === 'string' && value.startsWith('/api/results/')) {
+                const lower = value.toLowerCase();
+                if (lower.match(/\.(png|jpg|jpeg|webp|gif)$/)) {
+                    return `<a href="${value}" target="_blank" class="text-emerald-400 font-bold underline">Open image</a><img src="${value}" class="mt-3 rounded-xl max-h-48 w-full object-contain bg-slate-950">`;
+                }
+                if (lower.match(/\.(wav|mp3|ogg|m4a)$/)) {
+                    return `<audio controls class="w-full mt-2"><source src="${value}"></audio><a href="${value}" download class="text-emerald-400 font-bold underline mt-2 block">Download audio</a>`;
+                }
+                if (lower.match(/\.(mp4|webm|mov)$/)) {
+                    return `<video controls class="w-full mt-2 rounded-xl max-h-56"><source src="${value}"></video><a href="${value}" download class="text-emerald-400 font-bold underline mt-2 block">Download video</a>`;
+                }
+                return `<a href="${value}" download class="text-emerald-400 font-bold underline">Download result</a>`;
+            }
+            if (typeof value === 'object') {
+                return `<pre class="whitespace-pre-wrap">${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+            }
+            return `<div class="whitespace-pre-wrap">${escapeHtml(value)}</div>`;
+        }
+
+        function renderMultimodalResult(result) {
+            const final = result?.final || {};
+            const finalValue = final.url || final.value || '';
+            const steps = result?.steps || [];
+            const stepRows = steps.map(step => `
+                <div class="flex items-center justify-between gap-3 py-1 border-b border-white/5 last:border-b-0">
+                    <span class="text-slate-400">${escapeHtml(step.id)} · ${escapeHtml(step.action)}</span>
+                    <span class="${step.status === 'completed' ? 'text-emerald-400' : 'text-red-400'} font-bold">${escapeHtml(step.status)}</span>
+                </div>
+            `).join('');
+            return `
+                <div class="mt-2 bg-slate-900 p-3 rounded-xl text-xs space-y-3">
+                    <div>${renderResultValue(finalValue)}</div>
+                    <details class="mt-3">
+                        <summary class="cursor-pointer text-blue-300 font-bold">Multimodal Plan</summary>
+                        <div class="mt-2 text-slate-300">${stepRows || '<span class="text-slate-500">No steps</span>'}</div>
+                        <pre class="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-slate-500">${escapeHtml(JSON.stringify(result?.plan || {}, null, 2))}</pre>
+                    </details>
+                </div>
+            `;
+        }
+
         async function loadJobs() {
             const res = await fetch('/api/jobs');
             const jobs = await res.json();
@@ -567,6 +722,8 @@ async function submitMediaTask(type) {
                     } else if (job.type === 'llm') {
                         resultHtml = `<div class="mt-2 bg-slate-900 p-3 rounded-xl max-h-32 overflow-y-auto text-xs whitespace-pre-wrap">${job.result}</div>
                                       <button onclick="addChatHistory('${job.id}')" class="mt-2 text-xs bg-blue-600 px-2 py-1 rounded text-white">Add to Chat</button>`;
+                    } else if (job.type === 'multimodal') {
+                        resultHtml = renderMultimodalResult(job.result);
                     } else {
                         resultHtml = `<div class="mt-2 bg-slate-900 p-3 rounded-xl max-h-32 overflow-y-auto text-xs whitespace-pre-wrap">${job.result}</div>`;
                     }

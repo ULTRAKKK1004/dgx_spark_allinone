@@ -105,6 +105,20 @@ vid = await runner.run("video.i2v.wan22", prompt="gentle motion", image_name="se
   - ElevenLabs 장애 시 `auto`는 로컬 fallback
   - `preferred_voice_provider=elevenlabs`로 강제했을 때만 ElevenLabs 실패가 job 실패가 됨
 
+API 예시:
+
+```bash
+curl -X POST https://tor-ai.com/api/multimodal/execute \
+  -H "Authorization: Bearer $TOR_AI_TOKEN" \
+  -F "instruction=이 이미지를 분석해서 발표자료를 만들고 강의 음성으로 읽어줘" \
+  -F "quality=high" \
+  -F "preferred_voice_provider=elevenlabs" \
+  -F "files=@./slide-source.png"
+
+curl https://tor-ai.com/api/jobs/<job_id> \
+  -H "Authorization: Bearer $TOR_AI_TOKEN"
+```
+
 ## 알려진 한계 (Phase B에서 개선)
 
 - **첫 실행 cold start**: ComfyUI가 모델을 처음 로드할 때 light 워크플로우도 60-90초 걸릴 수 있어 catalog의 `timeout_sec: 90`을 초과할 수 있음. 해결안: `timeout_sec` 상향(180s), 또는 서비스 기동 시 더미 prompt로 워밍업.

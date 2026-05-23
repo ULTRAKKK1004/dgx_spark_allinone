@@ -86,3 +86,59 @@ def test_rule_fallback_maps_ppt_generation():
     plan = multimodal_router.fallback_plan("AI 윤리 발표자료 만들어줘", [], quality="standard")
 
     assert plan.steps[0].action == "ppt.generate"
+
+
+def test_rule_fallback_builds_voiced_lecture_video_from_image_and_script_file():
+    image = MediaAsset(alias="image_1", path="/tmp/lecturer.png", mime_type="image/png")
+    script = MediaAsset(
+        alias="file_1",
+        path="/tmp/script.md",
+        mime_type="text/markdown",
+        filename="script.md",
+    )
+
+    plan = multimodal_router.fallback_plan(
+        "입력한 이미지가 강의장에 서있는 이미지입니다. 입력한 강의 대본대로 강의하는 영상을 만들어주세요.",
+        [image, script],
+        quality="high",
+        preferred_voice_provider="elevenlabs",
+        preferred_voice="voice123",
+    )
+
+    assert [step.action for step in plan.steps] == [
+        "text.extract",
+        "voice.tts",
+        "video.generate",
+        "video.edit",
+    ]
+    assert plan.steps[0].inputs == {"file": "file_1"}
+    assert plan.steps[1].inputs["text"] == "$script_text"
+    assert plan.steps[1].inputs["provider"] == "elevenlabs"
+    assert plan.steps[1].inputs["voice"] == "voice123"
+    assert plan.steps[2].inputs["image"] == "image_1"
+    assert plan.steps[3].inputs["video"] == "$silent_video"
+    assert plan.steps[3].inputs["audio"] == "$voice_audio"
+    assert plan.final == {"primary": "lecture_video", "format": "video"}
+
+
+@pytest.mark.asyncio
+async def test_plan_request_forces_voiced_lecture_video_even_if_planner_would_skip_script(monkeypatch):
+    image = MediaAsset(alias="image_1", path="/tmp/lecturer.png", mime_type="image/png")
+    script = MediaAsset(alias="file_1", path="/tmp/script.txt", mime_type="text/plain")
+
+    async def planner_should_not_run(prompt, system_prompt):
+        raise AssertionError("lecture script routing should not depend on the LLM planner")
+
+    monkeypatch.setattr(multimodal_router.llm_service, "generate_text", planner_should_not_run)
+
+    plan = await multimodal_router.plan_request(
+        "대본대로 자연스럽게 강의하는 영상을 만들어줘",
+        [image, script],
+    )
+
+    assert [step.action for step in plan.steps] == [
+        "text.extract",
+        "voice.tts",
+        "video.generate",
+        "video.edit",
+    ]

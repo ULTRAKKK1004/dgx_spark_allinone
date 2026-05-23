@@ -56,10 +56,10 @@ async def execute_plan(plan: MediaPlan, assets: list[MediaAsset]) -> dict[str, A
             raw_result = await handler(resolved_inputs, ctx)
             normalized = _normalize_result(raw_result)
             for output_key, alias in step.outputs.items():
-                if output_key in normalized:
-                    ctx.values[alias] = normalized[output_key]
-                elif len(normalized) == 1:
-                    ctx.values[alias] = next(iter(normalized.values()))
+                if output_key in raw_result:
+                    ctx.values[alias] = _value_for_chaining(raw_result[output_key])
+                elif len(raw_result) == 1:
+                    ctx.values[alias] = _value_for_chaining(next(iter(raw_result.values())))
                 else:
                     raise StepExecutionError(f"{step.id}: output {output_key} missing")
             step_results.append(
@@ -85,11 +85,12 @@ async def execute_plan(plan: MediaPlan, assets: list[MediaAsset]) -> dict[str, A
 
     primary = plan.final.get("primary")
     primary_value = ctx.values.get(primary) if primary else None
+    normalized_primary = _normalize_result({"primary": primary_value}).get("primary")
     final = {"type": plan.final.get("format", "unknown"), "primary": primary}
-    if isinstance(primary_value, str) and primary_value.startswith("/api/results/"):
-        final["url"] = primary_value
+    if isinstance(normalized_primary, str) and normalized_primary.startswith("/api/results/"):
+        final["url"] = normalized_primary
     else:
-        final["value"] = primary_value
+        final["value"] = normalized_primary
     return {"plan": plan.to_dict(), "steps": step_results, "final": final}
 
 
@@ -103,6 +104,12 @@ def _normalize_result(result: dict[str, Any]) -> dict[str, Any]:
         else:
             normalized[key] = value
     return normalized
+
+
+def _value_for_chaining(value: Any) -> Any:
+    if isinstance(value, Path):
+        return str(value)
+    return value
 
 
 def _path_to_url_or_str(value: str) -> str:
@@ -127,6 +134,13 @@ async def _handle_text_generate(inputs: dict[str, Any], ctx: ExecutionContext) -
         "text.generate",
     )
     return {"text": text}
+
+
+async def _handle_text_extract(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
+    path = inputs.get("file")
+    if not isinstance(path, str) or not path:
+        raise ValueError("text.extract requires a file input")
+    return {"text": _read_text_file(path)}
 
 
 async def _handle_ppt_generate(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
@@ -273,6 +287,44 @@ def _file_to_data_url(path: str, fallback_mime: str) -> str:
     return f"data:{fallback_mime};base64,{encoded}"
 
 
+def _read_text_file(path: str) -> str:
+    local_path = _results_url_to_path(path)
+    ext = Path(local_path).suffix.lower()
+    if ext == ".pdf":
+        return _read_pdf_text(local_path)
+    if ext not in {"", ".txt", ".md", ".markdown", ".srt", ".vtt", ".csv", ".json"}:
+        raise ValueError(f"text.extract does not support {ext or 'this file type'}")
+
+    max_bytes = int(os.getenv("MULTIMODAL_TEXT_EXTRACT_MAX_BYTES", str(5 * 1024 * 1024)))
+    with open(local_path, "rb") as f:
+        data = f.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ValueError(f"text.extract input exceeds {max_bytes} bytes")
+    for encoding in ("utf-8-sig", "utf-8", "cp949", "utf-16"):
+        try:
+            return data.decode(encoding).strip()
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace").strip()
+
+
+def _read_pdf_text(path: str) -> str:
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise ValueError("text.extract PDF support requires pypdf") from exc
+
+    reader = PdfReader(path)
+    return "\n\n".join(page.extract_text() or "" for page in reader.pages).strip()
+
+
+def _results_url_to_path(value: str) -> str:
+    prefix = "/api/results/"
+    if value.startswith(prefix):
+        return os.path.join(RESULTS_DIR, os.path.basename(value))
+    return value
+
+
 async def _await_llm_step(awaitable, label: str):
     timeout = float(os.getenv("MULTIMODAL_LLM_STEP_TIMEOUT", "20"))
     try:
@@ -283,6 +335,7 @@ async def _await_llm_step(awaitable, label: str):
 
 ACTION_HANDLERS: dict[str, Handler] = {
     "text.generate": _handle_text_generate,
+    "text.extract": _handle_text_extract,
     "ppt.generate": _handle_ppt_generate,
     "image.generate": _handle_image_generate,
     "image.edit": _handle_image_edit,

@@ -11,6 +11,12 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "inputs": {"prompt": "string", "system_prompt": "optional string"},
         "outputs": {"text": "string"},
     },
+    "text.extract": {
+        "kind": "text",
+        "description": "Extract script text from an uploaded text/markdown/subtitle file.",
+        "inputs": {"file": "text asset alias"},
+        "outputs": {"text": "string"},
+    },
     "ppt.generate": {
         "kind": "document",
         "description": "Create a PowerPoint deck from a topic or outline.",

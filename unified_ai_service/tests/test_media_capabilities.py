@@ -2,6 +2,7 @@ from media_capabilities import SUPPORTED_ACTIONS, get_action, planner_prompt
 
 
 def test_supported_actions_include_initial_multimodal_surface():
+    assert "text.extract" in SUPPORTED_ACTIONS
     assert "image.generate" in SUPPORTED_ACTIONS
     assert "image.analyze" in SUPPORTED_ACTIONS
     assert "voice.tts" in SUPPORTED_ACTIONS

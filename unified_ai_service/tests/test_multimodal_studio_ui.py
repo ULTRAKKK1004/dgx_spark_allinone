@@ -34,6 +34,15 @@ def test_studio_fetches_elevenlabs_voice_list():
     assert "airYK6ydeWdrJg6gyZA3" in html
 
 
+def test_studio_keeps_cumulative_multimodal_file_selection():
+    html = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "let selectedMultimodalFiles = []" in html
+    assert "syncMultimodalFileInput()" in html
+    assert "DataTransfer" in html
+    assert "clearMultimodalFiles()" in html
+
+
 def test_jobs_render_multimodal_results_as_links_and_plan():
     html = TEMPLATE.read_text(encoding="utf-8")
 

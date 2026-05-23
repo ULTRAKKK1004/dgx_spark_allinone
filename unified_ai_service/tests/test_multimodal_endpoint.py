@@ -6,18 +6,44 @@ import main
 @pytest.mark.asyncio
 async def test_save_multimodal_uploads_assigns_aliases(tmp_path, monkeypatch):
     class FakeUpload:
-        filename = "a.png"
-        content_type = "image/png"
+        def __init__(self, filename, content_type):
+            self.filename = filename
+            self.content_type = content_type
 
         async def read(self):
-            return b"png"
+            return self.filename.encode()
 
     monkeypatch.setattr(main, "UPLOADS_DIR", str(tmp_path))
 
-    assets = await main._save_multimodal_uploads([FakeUpload()])
+    assets = await main._save_multimodal_uploads([FakeUpload("a.png", "image/png")])
 
     assert assets[0].alias == "image_1"
     assert assets[0].path.endswith("a.png")
+
+
+@pytest.mark.asyncio
+async def test_save_multimodal_uploads_keeps_multiple_files_with_typed_aliases(tmp_path, monkeypatch):
+    class FakeUpload:
+        def __init__(self, filename, content_type):
+            self.filename = filename
+            self.content_type = content_type
+
+        async def read(self):
+            return self.filename.encode()
+
+    monkeypatch.setattr(main, "UPLOADS_DIR", str(tmp_path))
+
+    assets = await main._save_multimodal_uploads(
+        [
+            FakeUpload("first.png", "image/png"),
+            FakeUpload("second.jpg", "image/jpeg"),
+            FakeUpload("voice.wav", "audio/wav"),
+            FakeUpload("clip.mp4", "video/mp4"),
+        ]
+    )
+
+    assert [asset.alias for asset in assets] == ["image_1", "image_2", "audio_1", "video_1"]
+    assert [asset.filename for asset in assets] == ["first.png", "second.jpg", "voice.wav", "clip.mp4"]
 
 
 @pytest.mark.asyncio

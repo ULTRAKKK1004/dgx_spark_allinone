@@ -6,7 +6,7 @@ import aiohttp
 import subprocess
 import time
 import shutil
-from .workflows import get_stage1_image_gen_workflow, get_stage2_animatediff_workflow, get_wan_s2v_workflow
+from workflows import get_stage1_image_gen_workflow, get_stage2_animatediff_workflow, get_wan_s2v_workflow
 
 COMFYUI_URL = "http://localhost:8188"
 # These should match the host paths mapped in docker-compose

@@ -27,7 +27,7 @@ services:
       --max-model-len 8192
       --dtype auto
       --quantization fp8
-      --gpu-memory-utilization 0.8
+      --gpu-memory-utilization 0.5
       --max-num-batched-tokens 4096
       --tensor-parallel-size 1
       --enforce-eager

@@ -6,7 +6,7 @@ import traceback
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, Header, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from .orchestrator import LectureOrchestrator
+from orchestrator import LectureOrchestrator
 from dotenv import load_dotenv
 
 BASE_DIR = "/home/yanus/lecture_service"

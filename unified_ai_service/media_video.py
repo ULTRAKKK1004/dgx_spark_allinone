@@ -67,7 +67,7 @@ async def shorten_video(video_path: str, prompt: str) -> str:
         elif prompt.lower().find("중간") != -1 or prompt.lower().find("middle") != -1:
             start_time = max(0.0, (dur / 2) - (short_dur / 2))
             
-        short_clip = clip.subclip(start_time, start_time + short_dur)
+        short_clip = clip.subclipped(start_time, start_time + short_dur)
         
         # Apply standard shorts resolution (vertical crop - naive center crop)
         w, h = short_clip.size
@@ -103,7 +103,7 @@ async def edit_video(video_path: str, audio_path: str = None, image_path: str = 
                 clip = clip.with_effects([Loop(duration=new_audio.duration)])
                 clip = clip.set_audio(new_audio)
             else:
-                new_audio = new_audio.subclip(0, min(clip.duration, new_audio.duration))
+                new_audio = new_audio.subclipped(0, min(clip.duration, new_audio.duration))
                 clip = clip.set_audio(new_audio)
                 
         # Append image at the end
@@ -162,7 +162,7 @@ async def generate_long_video(prompt: str, base_image_path: str, total_duration_
         # Fallback Mock Clip
         from moviepy import ColorClip, TextClip, CompositeVideoClip
         clip = ColorClip(size=(720, 1280), color=(int(20*i), int(50*i), 150), duration=chunk_duration)
-        txt = TextClip(f"{prompt}\nMoving Window {i+1}", fontsize=50, color='white').set_position('center').set_duration(chunk_duration)
+        txt = TextClip(text=f"{prompt}\nMoving Window {i+1}", font_size=50, color='white', duration=chunk_duration).with_position('center')
         video = CompositeVideoClip([clip, txt])
         video.write_videofile(chunk_path, fps=fps, codec="libx264", logger=None)
         

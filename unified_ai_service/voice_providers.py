@@ -21,6 +21,10 @@ DEFAULT_ELEVENLABS_VOICE_ID = "airYK6ydeWdrJg6gyZA3"
 load_dotenv("/home/yanus/.env")
 
 
+class ElevenLabsPaymentRequired(RuntimeError):
+    """Raised when ElevenLabs rejects synthesis because billing or quota is exhausted."""
+
+
 @dataclass(frozen=True)
 class TTSChunk:
     index: int
@@ -177,7 +181,15 @@ async def _synthesize_elevenlabs(text: str, output_path: str, voice: str = "defa
                     headers={"xi-api-key": api_key, "accept": "audio/mpeg"},
                     json=payload,
                 )
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 402:
+                        raise ElevenLabsPaymentRequired(
+                            "ElevenLabs payment required: 계정 크레딧/결제/쿼터 문제로 TTS가 거부됐습니다. "
+                            "ElevenLabs에서 결제 또는 크레딧을 확인하거나, Voice Provider를 Local F5/Auto로 바꿔 재시도하세요."
+                        ) from exc
+                    raise
                 part_path = os.path.join(RESULTS_DIR, f"eleven_{uuid.uuid4().hex[:8]}_{chunk.index}.mp3")
                 Path(part_path).write_bytes(response.content)
                 tmp_paths.append(part_path)

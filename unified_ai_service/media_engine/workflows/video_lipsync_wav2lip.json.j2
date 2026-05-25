@@ -1,0 +1,46 @@
+{
+  "load_media": {
+    "class_type": "{% if image_name.endswith('.mp4') or image_name.endswith('.mov') %}VHS_LoadVideo{% else %}LoadImage{% endif %}",
+    "inputs": {
+      "{% if image_name.endswith('.mp4') or image_name.endswith('.mov') %}video{% else %}image{% endif %}": {{ image_name | tojson }},
+      "upload": "image"
+      {% if image_name.endswith('.mp4') or image_name.endswith('.mov') %},
+      "force_rate": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "custom_width": 0,
+      "custom_height": 0
+      {% endif %}
+    }
+  },
+  "load_audio": {
+    "class_type": "LoadAudio",
+    "inputs": { "audio": {{ audio_name | tojson }} }
+  },
+  "wav2lip": {
+    "class_type": "Wav2Lip",
+    "inputs": {
+      "images": ["load_media", 0],
+      "audio": ["load_audio", 0],
+      "mode": "sequential",
+      "face_detect_batch": {{ face_detect_batch }}
+    }
+  },
+  "combine": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["wav2lip", 0],
+      "audio": ["load_audio", 0],
+      "frame_rate": 25.0,
+      "loop_count": 0,
+      "filename_prefix": "wav2lip",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

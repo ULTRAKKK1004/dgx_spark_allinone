@@ -9,9 +9,11 @@ import uuid
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+import logging
 from media_capabilities import SUPPORTED_ACTIONS
 from multimodal_models import MediaAsset, MediaPlan
 
+logger = logging.getLogger(__name__)
 
 BASE_DIR = "/home/yanus/unified_ai_service"
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
@@ -49,17 +51,19 @@ Handler = Callable[[dict[str, Any], ExecutionContext], Awaitable[dict[str, Any]]
 async def execute_plan(plan: MediaPlan, assets: list[MediaAsset]) -> dict[str, Any]:
     ctx = ExecutionContext(assets, quality=plan.quality)
     step_results: list[dict[str, Any]] = []
+    logger.info("Executing plan for goal: %s (quality=%s)", plan.goal, plan.quality)
     for step in plan.steps:
         try:
+            logger.info("Step %s: action=%s inputs=%s", step.id, step.action, step.inputs)
             handler = ACTION_HANDLERS[step.action]
             resolved_inputs = ctx.resolve_inputs(step.inputs)
             raw_result = await handler(resolved_inputs, ctx)
             normalized = _normalize_result(raw_result)
             for output_key, alias in step.outputs.items():
                 if output_key in raw_result:
-                    ctx.values[alias] = _value_for_chaining(raw_result[output_key])
+                    ctx.values[alias] = _value_for_chaining(raw_result, output_key)
                 elif len(raw_result) == 1:
-                    ctx.values[alias] = _value_for_chaining(next(iter(raw_result.values())))
+                    ctx.values[alias] = _value_for_chaining(raw_result)
                 else:
                     raise StepExecutionError(f"{step.id}: output {output_key} missing")
             step_results.append(
@@ -106,7 +110,13 @@ def _normalize_result(result: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _value_for_chaining(value: Any) -> Any:
+def _value_for_chaining(result: dict[str, Any], output_key: str | None = None) -> Any:
+    value = result[output_key] if output_key else next(iter(result.values()))
+    if isinstance(value, str) and value.startswith("/api/results/"):
+        metadata = result.get("metadata")
+        if isinstance(metadata, dict) and isinstance(metadata.get("path"), str):
+            return metadata["path"]
+        return _results_url_to_path(value)
     if isinstance(value, Path):
         return str(value)
     return value
@@ -157,9 +167,15 @@ async def _handle_ppt_generate(inputs: dict[str, Any], ctx: ExecutionContext) ->
 async def _handle_image_generate(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
     import media_image
 
+    params = inputs.copy()
+    workflow = params.pop("workflow", "zimage_turbo")
+    if workflow == "flux" and "workflow_type" in params:
+        params["workflow"] = params.pop("workflow_type")
+
     path = await media_image.generate_image(
         inputs.get("prompt", ""),
-        workflow=inputs.get("workflow", "zimage_turbo"),
+        workflow=workflow,
+        **params,
     )
     return {"image": path}
 
@@ -191,13 +207,24 @@ async def _handle_image_inpaint(inputs: dict[str, Any], ctx: ExecutionContext) -
 
 
 async def _handle_image_analyze(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
+    import media_image
     import llm_service
 
-    data_url = _file_to_data_url(inputs["image"], fallback_mime="image/png")
-    text = await _await_llm_step(
-        llm_service.analyze_image(data_url, inputs.get("prompt", "Analyze this image.")),
-        "image.analyze",
-    )
+    image_path = inputs["image"]
+    prompt = inputs.get("prompt", "Analyze this image.")
+
+    if ctx.quality == "high":
+        # Janus-Pro (Local GPU, higher quality)
+        # Note: media_image.analyze_image_janus already handles the ComfyUI logic
+        text = await media_image.analyze_image_janus(image_path, prompt)
+    else:
+        # VLM via LLM Service (Fast, lower/standard quality)
+        data_url = _file_to_data_url(image_path, fallback_mime="image/png")
+        text = await _await_llm_step(
+            llm_service.analyze_image(data_url, prompt),
+            "image.analyze",
+        )
+
     return {"text": text}
 
 
@@ -208,14 +235,18 @@ async def _handle_audio_music(inputs: dict[str, Any], ctx: ExecutionContext) -> 
     if duration > 30:
         path = await media_audio.generate_long_music(inputs.get("prompt", ""), duration)
     else:
-        path = await media_audio.generate_music(inputs.get("prompt", ""), duration)
+        path, _ = await media_audio.generate_music(inputs.get("prompt", ""), duration)
     return {"audio": path}
 
 
 async def _handle_audio_transcribe(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
     import stt_service
 
-    return {"text": stt_service.transcribe_audio(inputs["audio"])}
+    text = await stt_service.transcribe_audio(
+        inputs["audio"],
+        language=inputs.get("language"),
+    )
+    return {"text": text}
 
 
 async def _handle_voice_tts(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
@@ -239,6 +270,17 @@ async def _handle_video_generate(inputs: dict[str, Any], ctx: ExecutionContext) 
         inputs.get("prompt", ""),
         inputs["image"],
         total_duration_target=int(inputs.get("duration", 30)),
+    )
+    return {"video": path}
+
+
+async def _handle_video_talking(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
+    import media_video
+
+    path = await media_video.generate_talking_video(
+        inputs.get("prompt", ""),
+        inputs["image"],
+        inputs["audio"],
     )
     return {"video": path}
 
@@ -268,7 +310,25 @@ async def _handle_video_shorts(inputs: dict[str, Any], ctx: ExecutionContext) ->
 
 
 async def _handle_video_lipsync(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
-    raise RuntimeError("video.lipsync is registered but requires Phase B4 lip-sync engine installation")
+    import media_video
+
+    path = await media_video.lipsync_video(
+        inputs["video"] if "video" in inputs else inputs["image"],
+        inputs["audio"],
+        workflow=inputs.get("workflow", "video.lipsync.wav2lip"),
+    )
+    return {"video": path}
+
+
+async def _handle_video_lecture(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
+    import media_video
+
+    path = await media_video.generate_lecture_video(
+        inputs["image"],
+        inputs["audio"],
+        prompt=inputs.get("prompt", ""),
+    )
+    return {"video": path}
 
 
 async def _handle_package_bundle(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
@@ -333,7 +393,25 @@ async def _await_llm_step(awaitable, label: str):
         raise TimeoutError(f"{label} exceeded {timeout:g}s") from exc
 
 
-ACTION_HANDLERS: dict[str, Handler] = {
+async def _handle_audio_subtitle(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
+    import stt_service
+    import os, uuid
+
+    audio_path = inputs["audio"]
+    language = inputs.get("language")
+
+    segments = await stt_service.transcribe_with_timestamps(audio_path, language=language)
+    srt_content = stt_service.generate_srt_from_segments(segments)
+
+    filename = f"sub_{uuid.uuid4().hex[:8]}.srt"
+    path = os.path.join(RESULTS_DIR, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(srt_content)
+
+    return {"srt": path}
+
+
+ACTION_HANDLERS: dict[str, Any] = {
     "text.generate": _handle_text_generate,
     "text.extract": _handle_text_extract,
     "ppt.generate": _handle_ppt_generate,
@@ -344,11 +422,15 @@ ACTION_HANDLERS: dict[str, Handler] = {
     "image.analyze": _handle_image_analyze,
     "audio.music": _handle_audio_music,
     "audio.transcribe": _handle_audio_transcribe,
+    "audio.subtitle": _handle_audio_subtitle,
     "voice.tts": _handle_voice_tts,
     "video.generate": _handle_video_generate,
+
+    "video.talking": _handle_video_talking,
     "video.edit": _handle_video_edit,
     "video.analyze": _handle_video_analyze,
     "video.shorts": _handle_video_shorts,
     "video.lipsync": _handle_video_lipsync,
+    "video.lecture": _handle_video_lecture,
     "package.bundle": _handle_package_bundle,
 }

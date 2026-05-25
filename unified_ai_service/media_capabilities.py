@@ -70,6 +70,12 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "inputs": {"audio": "asset alias", "language": "optional string"},
         "outputs": {"text": "string"},
     },
+    "audio.subtitle": {
+        "kind": "audio",
+        "description": "Generate SRT subtitles from uploaded audio.",
+        "inputs": {"audio": "asset alias", "language": "optional string"},
+        "outputs": {"srt": "srt file content or url"},
+    },
     "voice.tts": {
         "kind": "voice",
         "description": "Generate spoken narration from text using local F5-TTS or ElevenLabs when configured.",
@@ -106,8 +112,14 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     },
     "video.lipsync": {
         "kind": "video",
-        "description": "Lip-sync a presenter video to narration. Registered now; full engine lands in Phase B4.",
-        "inputs": {"video": "asset alias", "audio": "asset alias"},
+        "description": "Lip-sync a presenter video or still image to narration using Wav2Lip/LivePortrait (Phase B4).",
+        "inputs": {"video": "asset alias or image alias", "audio": "asset alias", "workflow": "optional string"},
+        "outputs": {"video": "video file url"},
+    },
+    "video.lecture": {
+        "kind": "video",
+        "description": "Generate a full lecture video: Stage 1 (Face Swap) -> Stage 2 (Idle Loop) -> Stage 3 (Lip-sync).",
+        "inputs": {"image": "lecturer face alias", "audio": "narration alias", "prompt": "optional lecture topic"},
         "outputs": {"video": "video file url"},
     },
     "package.bundle": {
@@ -130,6 +142,11 @@ def planner_prompt() -> str:
         "You are a multimodal media planner.",
         "Return JSON only. Do not use markdown fences.",
         "Unsupported actions are invalid.",
+        "Instructions:",
+        "- Use 'video.lecture' for any task involving a person talking based on a script/audio.",
+        "- Do NOT use 'video.talking' as it is unavailable.",
+        "- Use 'image.analyze' (or 'image.analyze.janus' if high quality is needed) for image understanding.",
+        "- Use 'audio.subtitle' for generating SRT files.",
         "Schema: {version:'1', goal:string, quality:'draft|standard|high', steps:[{id, action, inputs, outputs}], final:{primary, format}}",
         "Available actions:",
     ]

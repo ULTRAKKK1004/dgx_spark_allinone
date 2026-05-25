@@ -1,0 +1,35 @@
+{
+  "loader": {
+    "class_type": "JanusModelLoader",
+    "inputs": {
+      "model_name": "deepseek-ai/Janus-Pro-7B"
+    }
+  },
+  "load_image": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": {{ image_name | tojson }},
+      "upload": "image"
+    }
+  },
+  "analyze": {
+    "class_type": "JanusImageUnderstanding",
+    "inputs": {
+      "model": ["loader", 0],
+      "processor": ["loader", 1],
+      "image": ["load_image", 0],
+      "question": {{ prompt | tojson }},
+      "seed": {{ seed }},
+      "temperature": {{ temperature }},
+      "top_p": 0.95,
+      "max_new_tokens": {{ max_new_tokens }}
+    }
+  },
+  "output": {
+    "class_type": "SaveText",
+    "inputs": {
+      "text": ["analyze", 0],
+      "filename_prefix": "janus_analyze"
+    }
+  }
+}

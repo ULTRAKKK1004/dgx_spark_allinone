@@ -70,3 +70,20 @@ async def inpaint_image(
         mask_name=msk_filename,
         **kwargs,
     )
+
+
+async def analyze_image_janus(
+    image_path: str,
+    prompt: str = "Describe this image in detail.",
+    **kwargs,
+) -> str:
+    """Janus-Pro 7B를 이용한 고성능 이미지 분석."""
+    filename = f"janus_{uuid.uuid4().hex[:8]}_{os.path.basename(image_path)}"
+    await comfyui_client.upload_image(image_path, filename)
+    res = await runner.run(
+        "image.analyze.janus",
+        image_name=filename,
+        prompt=prompt,
+        **kwargs,
+    )
+    return str(res)

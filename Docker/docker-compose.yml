@@ -11,6 +11,7 @@ services:
     volumes:
       - ./models:/app/ComfyUI/models
       - ./output:/app/ComfyUI/output
+      - ./input:/app/ComfyUI/input
       - ./custom_nodes_persistent:/app/ComfyUI/custom_nodes
       - ./flows:/app/ComfyUI/user/default/workflows
     deploy:

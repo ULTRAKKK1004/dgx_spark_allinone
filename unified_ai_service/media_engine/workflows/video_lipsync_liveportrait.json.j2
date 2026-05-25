@@ -1,0 +1,62 @@
+{
+  "loader": {
+    "class_type": "DownloadAndLoadLivePortraitModels",
+    "inputs": { "precision": "fp16", "mode": "human" }
+  },
+  "cropper_load": {
+    "class_type": "LivePortraitLoadMediaPipeCropper",
+    "inputs": { "device": "CPU", "include_neck": true }
+  },
+  "source_image": {
+    "class_type": "LoadImage",
+    "inputs": { "image": {{ image_name | tojson }}, "upload": "image" }
+  },
+  "load_audio": {
+    "class_type": "LoadAudio",
+    "inputs": { "audio": {{ audio_name | tojson }} }
+  },
+  "source_crop": {
+    "class_type": "LivePortraitCropper",
+    "inputs": {
+      "pipeline": ["loader", 0],
+      "cropper": ["cropper_load", 0],
+      "source_image": ["source_image", 0],
+      "dsize": 512,
+      "scale": 2.3,
+      "vy_ratio": -0.125
+    }
+  },
+  "process": {
+    "class_type": "LivePortraitProcess",
+    "inputs": {
+      "pipeline": ["loader", 0],
+      "crop_info": ["source_crop", 1],
+      "source_image": ["source_image", 0],
+      "driving_images": ["source_image", 0],
+      "lip_zero": true,
+      "lip_zero_threshold": 0.03
+    }
+  },
+  "composite": {
+    "class_type": "LivePortraitComposite",
+    "inputs": {
+      "full_images": ["source_image", 0],
+      "cropped_image": ["process", 0],
+      "liveportrait_out": ["process", 1]
+    }
+  },
+  "combine": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["composite", 0],
+      "audio": ["load_audio", 0],
+      "frame_rate": {{ fps }},
+      "loop_count": 0,
+      "filename_prefix": "liveportrait_lipsync",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

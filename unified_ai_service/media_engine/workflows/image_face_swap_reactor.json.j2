@@ -1,0 +1,35 @@
+{
+  "reactor": {
+    "class_type": "ReActorFaceSwap",
+    "inputs": {
+      "enabled": true,
+      "swap_model": "inswapper_128.onnx",
+      "facedetection": "retinaface_resnet50",
+      "face_restore_model": "codeformer-v0.1.0.pth",
+      "face_restore_visibility": 1.0,
+      "codeformer_weight": 0.8,
+      "detect_gender_source": "no",
+      "detect_gender_input": "no",
+      "source_faces_index": "0",
+      "input_faces_index": "0",
+      "console_log_level": 1,
+      "input_image": ["load_input", 0],
+      "source_image": ["load_source", 0]
+    }
+  },
+  "load_source": {
+    "class_type": "LoadImage",
+    "inputs": { "image": {{ source_image | tojson }}, "upload": "image" }
+  },
+  "load_input": {
+    "class_type": "LoadImage",
+    "inputs": { "image": {{ input_image | tojson }}, "upload": "image" }
+  },
+  "save_image": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "reactor_swap",
+      "images": ["reactor", 0]
+    }
+  }
+}

@@ -104,9 +104,11 @@ WORKFLOWS: dict[str, dict[str, Any]] = {
             "steps":    (int,   20),
             "seed":     (int,   0),
             "guidance": (float, 3.5),
+            "workflow": (str, "dev"),
         },
         "models_required": [
             "diffusion_models/FLUX1/flux1-dev-fp8.safetensors",
+            "diffusion_models/FLUX1/flux1-schnell-fp8.safetensors",
             "text_encoders/clip_l.safetensors",
             "text_encoders/t5xxl_fp8_e4m3fn.safetensors",
             "vae/ae.safetensors",
@@ -114,6 +116,9 @@ WORKFLOWS: dict[str, dict[str, Any]] = {
         "output_node": "9",
         "vram_class": "heavy",
         "timeout_sec": 600,
+        "choices": {
+            "workflow": {"dev", "schnell"},
+        },
     },
     "image.ctrl.flux_union": {
         "template": "image_ctrl_flux_union.json.j2",
@@ -158,6 +163,82 @@ WORKFLOWS: dict[str, dict[str, Any]] = {
             "vae/qwen_image_vae.safetensors",
         ],
         "output_node": "9",
+        "vram_class": "heavy",
+        "timeout_sec": 300,
+    },
+    "image.analyze.janus": {
+        "template": "image_analyze_janus.json.j2",
+        "params": {
+            "image_name":     (str, ...),
+            "prompt":         (str, "Describe this image in detail."),
+            "seed":           (int, 666),
+            "temperature":    (float, 0.1),
+            "max_new_tokens": (int, 512),
+        },
+        "models_required": [
+            "Janus-Pro/Janus-Pro-7B/config.json",
+            "Janus-Pro/Janus-Pro-7B/pytorch_model-00001-of-00002.bin",
+            "Janus-Pro/Janus-Pro-7B/pytorch_model-00002-of-00002.bin",
+        ],
+        "output_node": "analyze",
+        "vram_class": "heavy",
+        "timeout_sec": 300,
+    },
+    "video.lipsync.liveportrait": {
+        "template": "video_lipsync_liveportrait.json.j2",
+        "params": {
+            "image_name": (str, ...),
+            "audio_name": (str, ...),
+            "fps":        (int, 25),
+        },
+        "models_required": [
+            "liveportrait/appearance_feature_extractor.safetensors",
+            "liveportrait/motion_extractor.safetensors",
+            "liveportrait/warping_module.safetensors",
+            "liveportrait/spade_generator.safetensors",
+            "liveportrait/stitching_retargeting_module.safetensors",
+        ],
+        "output_node": "combine",
+        "vram_class": "heavy",
+        "timeout_sec": 300,
+    },
+    "video.lipsync.wav2lip": {
+        "template": "video_lipsync_wav2lip.json.j2",
+        "params": {
+            "image_name": (str, ...),
+            "audio_name": (str, ...),
+            "face_detect_batch": (int, 8),
+        },
+        "models_required": [
+            "wav2lip/wav2lip_gan.pth",
+        ],
+        "output_node": "combine",
+        "vram_class": "heavy",
+        "timeout_sec": 300,
+    },
+    "image.face_swap.reactor": {
+        "template": "image_face_swap_reactor.json.j2",
+        "params": {
+            "source_image": (str, ...),
+            "input_image":  (str, ...),
+        },
+        "models_required": [
+            "insightface/inswapper_128.onnx",
+        ],
+        "output_node": "save_image",
+        "vram_class": "heavy",
+        "timeout_sec": 60,
+    },
+    "video.idle_loop.animatediff": {
+        "template": "video_idle_loop_animatediff.json.j2",
+        "params": {
+            "image_name": (str, ...),
+            "prompt":     (str, "subtle natural breathing, blinking"),
+        },
+        "models_required": [
+            "animatediff_models/mm_sdxl_v10_beta.ckpt",
+        ],
+        "output_node": "combine",
         "vram_class": "heavy",
         "timeout_sec": 300,
     },

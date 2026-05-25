@@ -113,8 +113,10 @@ def fallback_plan(
         raw = _single("video.analyze", {"video": video_assets[0].alias, "prompt": instruction}, "text", "analysis", "text", quality)
     elif image_assets and _has_any(low, ["분석", "설명", "analyze"]):
         raw = _single("image.analyze", {"image": image_assets[0].alias, "prompt": instruction}, "text", "analysis", "text", quality)
-    elif audio_assets and _has_any(low, ["전사", "텍스트", "자막", "transcribe", "stt"]):
+    elif audio_assets and _has_any(low, ["전사", "텍스트", "transcribe", "stt"]):
         raw = _single("audio.transcribe", {"audio": audio_assets[0].alias}, "text", "transcript", "text", quality)
+    elif audio_assets and _has_any(low, ["자막", "srt", "subtitle"]):
+        raw = _single("audio.subtitle", {"audio": audio_assets[0].alias}, "srt", "subtitle", "document", quality)
     elif _has_any(low, ["음성", "내레이션", "나레이션", "tts", "읽어", "말해"]):
         raw = _single(
             "voice.tts",
@@ -140,7 +142,13 @@ def fallback_plan(
     elif _has_any(low, ["음악", "배경음", "music", "bgm"]):
         raw = _single("audio.music", {"prompt": instruction, "duration": _extract_duration(low, 30)}, "audio", "music", "audio", quality)
     elif _has_any(low, ["이미지", "그림", "사진", "image"]):
-        raw = _single("image.generate", {"prompt": instruction}, "image", "image", "image", quality)
+        if quality == "draft":
+            # Draft quality: FLUX Schnell (faster)
+            raw = _single("image.generate", {"prompt": instruction, "workflow": "flux", "workflow_type": "schnell", "steps": 4}, "image", "image", "image", quality)
+        else:
+            # Standard/High: Default to zimage_turbo or flux dev (depending on implementation)
+            # Here we follow existing convention but enable quality-based routing
+            raw = _single("image.generate", {"prompt": instruction}, "image", "image", "image", quality)
     else:
         raw = _single("text.generate", {"prompt": instruction}, "text", "answer", "text", quality)
 
@@ -165,6 +173,7 @@ def _voiced_lecture_video_plan(
     preferred_voice_provider: str,
     preferred_voice: str,
 ) -> dict[str, Any]:
+    tts_provider = _voice_provider_for_lecture(preferred_voice_provider, preferred_voice)
     return {
         "version": "1",
         "goal": "lecture.video",
@@ -181,30 +190,34 @@ def _voiced_lecture_video_plan(
                 "action": "voice.tts",
                 "inputs": {
                     "text": "$script_text",
-                    "provider": preferred_voice_provider,
+                    "provider": tts_provider,
                     "voice": preferred_voice,
                 },
                 "outputs": {"audio": "voice_audio"},
             },
             {
                 "id": "step_3",
-                "action": "video.generate",
-                "inputs": {"image": image_alias, "prompt": instruction},
-                "outputs": {"video": "silent_video"},
-            },
-            {
-                "id": "step_4",
-                "action": "video.edit",
+                "action": "video.lecture",
                 "inputs": {
-                    "video": "$silent_video",
+                    "image": image_alias,
                     "audio": "$voice_audio",
-                    "prompt": "오디오에 맞추기: 대본 TTS 음성 길이에 맞춰 강의 영상을 합성",
+                    "prompt": instruction,
                 },
                 "outputs": {"video": "lecture_video"},
             },
+            {
+                "id": "step_4",
+                "action": "audio.subtitle",
+                "inputs": {"audio": "$voice_audio"},
+                "outputs": {"srt": "lecture_subtitle"},
+            },
         ],
-        "final": {"primary": "lecture_video", "format": "video"},
+        "final": {"primary": "lecture_video", "format": "video", "secondary": "lecture_subtitle"},
     }
+
+
+def _voice_provider_for_lecture(preferred_voice_provider: str, preferred_voice: str) -> str:
+    return preferred_voice_provider
 
 
 def _is_voiced_lecture_video_request(
@@ -214,9 +227,9 @@ def _is_voiced_lecture_video_request(
 ) -> bool:
     if not image_assets or not text_assets:
         return False
-    return _has_any(low_instruction, ["강의", "lecture", "발표", "present"]) and _has_any(
+    return _has_any(low_instruction, ["강의", "lecture", "발표", "present", "강사", "입모양", "립싱크"]) and _has_any(
         low_instruction,
-        ["대본", "script", "영상", "비디오", "video", "말하", "읽어", "tts"],
+        ["대본", "script", "영상", "비디오", "video", "말하", "읽어", "tts", "싱크", "음성"],
     )
 
 

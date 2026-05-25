@@ -13,18 +13,26 @@ class ComfyUIError(RuntimeError):
     pass
 
 
-async def submit(workflow_prompt: dict) -> str:
+async def submit(workflow_prompt: dict, retries: int = 3) -> str:
     """워크플로우를 큐에 등록하고 prompt_id 반환."""
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{COMFYUI_URL}/prompt",
-            json={"prompt": workflow_prompt},
-        ) as resp:
-            data = await resp.json()
-            if resp.status != 200 or "prompt_id" not in data:
-                node_errs = data.get("node_errors") or data.get("error") or data
-                raise ComfyUIError(f"submit rejected: {node_errs}")
-            return data["prompt_id"]
+    for i in range(retries):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{COMFYUI_URL}/prompt",
+                    json={"prompt": workflow_prompt},
+                    timeout=10,
+                ) as resp:
+                    data = await resp.json()
+                    if resp.status != 200 or "prompt_id" not in data:
+                        node_errs = data.get("node_errors") or data.get("error") or data
+                        raise ComfyUIError(f"submit rejected: {node_errs}")
+                    return data["prompt_id"]
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            if i == retries - 1:
+                raise ComfyUIError(f"submit failed after {retries} retries: {e}")
+            await asyncio.sleep(2 ** i)
+    raise ComfyUIError("submit failed: unexpected loop exit")
 
 
 async def _get_history(prompt_id: str) -> dict:
@@ -38,8 +46,8 @@ async def wait_and_fetch(
     output_node: str,
     timeout: float = 300,
     poll_interval: float = 2.0,
-) -> Path:
-    """ComfyUI 워크플로우 완료를 기다리고 출력 파일 경로를 반환."""
+) -> Path | str:
+    """ComfyUI 워크플로우 완료를 기다리고 출력 파일 경로 또는 문자열을 반환."""
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
         history = await _get_history(prompt_id)
@@ -57,9 +65,19 @@ async def wait_and_fetch(
             outputs = entry.get("outputs", {})
             node_out = outputs.get(output_node)
             if node_out:
+                # 1. 파일 추출 시도 (이미지/비디오)
                 filename = _extract_filename(node_out)
                 if filename:
                     return Path(COMFY_OUTPUT_DIR) / filename
+                
+                # 2. 문자열 추출 시도 (텍스트)
+                # ComfyUI nodes returning STRING usually put it in a list of results
+                # e.g. {"text": ["The description..."]}
+                for val in node_out.values():
+                    if isinstance(val, list) and len(val) > 0 and isinstance(val[0], str):
+                        return val[0]
+                    if isinstance(val, str):
+                        return val
         await asyncio.sleep(poll_interval)
     raise ComfyUIError(f"timeout after {timeout}s for prompt {prompt_id}")
 
@@ -74,7 +92,19 @@ def _extract_filename(node_output: dict) -> str | None:
 
 
 async def upload_image(local_path: str, filename: str) -> dict:
-    """ComfyUI input/ 디렉토리로 이미지 업로드."""
+    """ComfyUI input/ 디렉토리로 이미지 업로드. 직접 파일 복사를 우선 시도."""
+    import shutil
+    host_input_dir = "/home/yanus/Docker/input"
+    if os.path.exists(host_input_dir):
+        dest = os.path.join(host_input_dir, filename)
+        try:
+            # Sync copy is fine as we are usually in a background task thread or it's fast
+            shutil.copy(local_path, dest)
+            return {"name": filename, "subfolder": "", "type": "input"}
+        except Exception as e:
+            logger.warning("direct copy failed, falling back to API: %s", e)
+
+    # API fallback
     async with aiohttp.ClientSession() as session:
         with open(local_path, "rb") as f:
             form = aiohttp.FormData()

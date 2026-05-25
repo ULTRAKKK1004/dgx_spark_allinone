@@ -28,7 +28,7 @@ def render_template(template: str, params: dict) -> dict:
     return json.loads(rendered)
 
 
-async def run(workflow_id: str, **params) -> Path:
+async def run(workflow_id: str, **params) -> Path | str:
     meta = catalog.get(workflow_id)
     validated = catalog.validate(meta, params)
     workflow = render_template(meta["template"], validated)
@@ -37,12 +37,18 @@ async def run(workflow_id: str, **params) -> Path:
 
     async with gpu_arbiter.acquire(meta["vram_class"]):
         prompt_id = await comfyui_client.submit(workflow)
-        source = await comfyui_client.wait_and_fetch(
+        res = await comfyui_client.wait_and_fetch(
             prompt_id,
             output_node=meta["output_node"],
             timeout=meta["timeout_sec"],
         )
 
+    if isinstance(res, str):
+        logger.info("Workflow %s done (string result)", workflow_id)
+        return res
+
+    # Proceed with Path handling
+    source = res
     os.makedirs(RESULTS_DIR, exist_ok=True)
     suffix = source.suffix or ".bin"
     dest = Path(RESULTS_DIR) / f"{workflow_id.replace('.', '_')}_{uuid.uuid4().hex[:8]}{suffix}"

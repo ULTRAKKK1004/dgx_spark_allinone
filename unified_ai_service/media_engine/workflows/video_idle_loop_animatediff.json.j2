@@ -1,0 +1,62 @@
+{
+  "sdxl_loader": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "SDXL/sd_xl_base_1.0_0.9vae.safetensors" }
+  },
+  "ad_loader": {
+    "class_type": "ADE_AnimateDiffLoaderWithContext",
+    "inputs": {
+      "model": ["sdxl_loader", 0],
+      "model_name": "mm_sdxl_v10_beta.ckpt",
+      "beta_schedule": "linear (AnimateDiff-SDXL)"
+    }
+  },
+  "load_image": {
+    "class_type": "LoadImage",
+    "inputs": { "image": {{ image_name | tojson }}, "upload": "image" }
+  },
+  "vae_encode": {
+    "class_type": "VAEEncode",
+    "inputs": { "pixels": ["load_image", 0], "vae": ["sdxl_loader", 2] }
+  },
+  "pos": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": {{ prompt | tojson }}, "clip": ["sdxl_loader", 1] }
+  },
+  "neg": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "fast movement, chaotic, blurry, distorted face", "clip": ["sdxl_loader", 1] }
+  },
+  "sampler": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 42,
+      "steps": 20,
+      "cfg": 8.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 0.35,
+      "model": ["ad_loader", 0],
+      "positive": ["pos", 0],
+      "negative": ["neg", 0],
+      "latent_image": ["vae_encode", 0]
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["sampler", 0], "vae": ["sdxl_loader", 2] }
+  },
+  "combine": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["decode", 0],
+      "frame_rate": 8.0,
+      "loop_count": 0,
+      "filename_prefix": "idle_loop",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

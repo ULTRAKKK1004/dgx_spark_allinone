@@ -111,10 +111,10 @@ async def process_vlm_task(job_id: str, data_url: str, prompt: str):
     except Exception as e:
         job_manager.update_job(job_id, "failed", error=str(e))
 
-def process_stt_task(job_id: str, filepath: str):
+async def process_stt_task(job_id: str, filepath: str):
     try:
         job_manager.update_job(job_id, "processing")
-        text = stt_service.transcribe_audio(filepath)
+        text = await stt_service.transcribe_audio(filepath)
         job_manager.update_job(job_id, "completed", result=text)
     except Exception as e:
         job_manager.update_job(job_id, "failed", error=str(e))

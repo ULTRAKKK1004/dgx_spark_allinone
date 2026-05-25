@@ -108,17 +108,53 @@ def test_rule_fallback_builds_voiced_lecture_video_from_image_and_script_file():
     assert [step.action for step in plan.steps] == [
         "text.extract",
         "voice.tts",
-        "video.generate",
-        "video.edit",
+        "video.lecture",
     ]
     assert plan.steps[0].inputs == {"file": "file_1"}
     assert plan.steps[1].inputs["text"] == "$script_text"
     assert plan.steps[1].inputs["provider"] == "elevenlabs"
     assert plan.steps[1].inputs["voice"] == "voice123"
     assert plan.steps[2].inputs["image"] == "image_1"
-    assert plan.steps[3].inputs["video"] == "$silent_video"
-    assert plan.steps[3].inputs["audio"] == "$voice_audio"
+    assert plan.steps[2].inputs["audio"] == "$voice_audio"
     assert plan.final == {"primary": "lecture_video", "format": "video"}
+
+
+def test_rule_fallback_uses_audio_conditioned_talking_video_for_lecture():
+    image = MediaAsset(alias="image_1", path="/tmp/lecturer.png", mime_type="image/png")
+    script = MediaAsset(alias="file_1", path="/tmp/script.md", mime_type="text/markdown")
+
+    plan = multimodal_router.fallback_plan(
+        "강사의 입모양도 음성과 자연스럽게 싱크가 맞고 조금씩 움직이면서 강의하게 해줘",
+        [image, script],
+        quality="high",
+        preferred_voice_provider="elevenlabs",
+        preferred_voice="voice123",
+    )
+
+    assert [step.action for step in plan.steps] == [
+        "text.extract",
+        "voice.tts",
+        "video.lecture",
+    ]
+    assert plan.steps[2].inputs["image"] == "image_1"
+    assert plan.steps[2].inputs["audio"] == "$voice_audio"
+    assert plan.steps[2].outputs == {"video": "lecture_video"}
+
+
+def test_lecture_video_keeps_auto_provider_even_when_voice_id_is_selected():
+    image = MediaAsset(alias="image_1", path="/tmp/lecturer.png", mime_type="image/png")
+    script = MediaAsset(alias="file_1", path="/tmp/script.md", mime_type="text/markdown")
+
+    plan = multimodal_router.fallback_plan(
+        "강의 대본대로 입모양 싱크 맞는 영상을 만들어줘",
+        [image, script],
+        quality="standard",
+        preferred_voice_provider="auto",
+        preferred_voice="airYK6ydeWdrJg6gyZA3",
+    )
+
+    assert plan.steps[1].inputs["provider"] == "auto"
+    assert plan.steps[1].inputs["voice"] == "airYK6ydeWdrJg6gyZA3"
 
 
 @pytest.mark.asyncio
@@ -139,6 +175,5 @@ async def test_plan_request_forces_voiced_lecture_video_even_if_planner_would_sk
     assert [step.action for step in plan.steps] == [
         "text.extract",
         "voice.tts",
-        "video.generate",
-        "video.edit",
+        "video.lecture",
     ]

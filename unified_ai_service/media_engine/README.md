@@ -128,13 +128,22 @@ curl https://tor-ai.com/api/elevenlabs/voices \
 
 응답의 `voices[].voice_id` 값을 `preferred_voice`로 전달하면 해당 voice로 TTS를 생성한다. 기본값은 `airYK6ydeWdrJg6gyZA3`.
 
+## Phase B4 산출 (2026-05-24)
+
+- **AI 강의 비디오 (Multi-stage) 통합**:
+  - `video.lecture` 액션 구현: Flux(배경) -> ReActor(페이스스왑) -> AnimateDiff(아이들루프) -> LivePortrait/Wav2Lip(립싱크).
+  - 스마트 오디오 청크 분할 및 무빙 윈도우 루핑 적용 (긴 오디오 대응).
+- **립싱크 강화**:
+  - `video.lipsync.liveportrait` 및 `video.lipsync.wav2lip` 워크플로우 등록.
+- **라우터 통합**:
+  - `POST /api/multimodal/execute` 에서 "강의 영상 만들어줘" 등 자연어 요청 시 multi-stage `video.lecture` 파이프라인 자동 선택.
+
 ## 알려진 한계 (Phase B에서 개선)
 
 - **첫 실행 cold start**: ComfyUI가 모델을 처음 로드할 때 light 워크플로우도 60-90초 걸릴 수 있어 catalog의 `timeout_sec: 90`을 초과할 수 있음. 해결안: `timeout_sec` 상향(180s), 또는 서비스 기동 시 더미 prompt로 워밍업.
 - **vLLM resume 타임아웃**: Gemma-4-26B fp8 모델 cold load가 5-7분 걸릴 수 있어 기본 `VLLM_RESUME_TIMEOUT=420`을 사용. 디스크/네트워크 상태에 따라 환경변수로 더 길게 설정 가능.
 - **Wan2.2 i2v는 high_noise single-stage**: `unet_low`는 catalog에 등록만 (Phase B4에서 multi-stage 확장).
 - **음악 길이 ≤ MusicGen-small chunk**: 30초 이상은 crossfade로 잇지만 음악 일관성은 청크 경계에서 끊김. Phase B2에서 더 큰 모델로 교체.
-- **lecture_service 미통합**: Phase A에서는 lecture_service의 Wan2.2 s2v 흐름을 그대로 유지. Phase B4에서 media_engine으로 마이그레이션.
 
 ## 관련 문서
 

@@ -131,6 +131,49 @@ async def test_executor_chains_script_to_voice_and_video_overlay(tmp_path, monke
 
 
 @pytest.mark.asyncio
+async def test_executor_chains_tts_file_path_not_public_url(tmp_path, monkeypatch):
+    audio = Path("/home/yanus/unified_ai_service/results/voice.wav")
+
+    async def fake_tts(inputs, ctx):
+        return {
+            "audio": "/api/results/voice.wav",
+            "metadata": {
+                "path": str(audio),
+                "url": "/api/results/voice.wav",
+                "provider": "elevenlabs",
+            },
+        }
+
+    async def fake_video_edit(inputs, ctx):
+        assert inputs["audio"] == str(audio)
+        return {"video": "/home/yanus/unified_ai_service/results/lecture.mp4"}
+
+    monkeypatch.setitem(multimodal_executor.ACTION_HANDLERS, "voice.tts", fake_tts)
+    monkeypatch.setitem(multimodal_executor.ACTION_HANDLERS, "video.edit", fake_video_edit)
+    plan = _plan(
+        {
+            "version": "1",
+            "goal": "audio-chain",
+            "steps": [
+                {"id": "s1", "action": "voice.tts", "inputs": {"text": "hello"}, "outputs": {"audio": "voice"}},
+                {
+                    "id": "s2",
+                    "action": "video.edit",
+                    "inputs": {"video": "video.mp4", "audio": "$voice"},
+                    "outputs": {"video": "lecture"},
+                },
+            ],
+            "final": {"primary": "lecture", "format": "video"},
+        }
+    )
+
+    result = await multimodal_executor.execute_plan(plan, assets=[])
+
+    assert result["steps"][0]["result"]["audio"] == "/api/results/voice.wav"
+    assert result["final"]["url"] == "/api/results/lecture.mp4"
+
+
+@pytest.mark.asyncio
 async def test_executor_records_step_failure(monkeypatch):
     async def fail(inputs, ctx):
         raise RuntimeError("boom")

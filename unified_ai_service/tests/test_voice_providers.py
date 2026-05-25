@@ -91,6 +91,23 @@ async def test_synthesize_forced_elevenlabs_failure_raises(monkeypatch, tmp_path
 
 
 @pytest.mark.asyncio
+async def test_synthesize_forced_elevenlabs_payment_error_is_clear(monkeypatch, tmp_path):
+    async def fake_eleven(*args, **kwargs):
+        raise voice_providers.ElevenLabsPaymentRequired("ElevenLabs payment required")
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "key")
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "voice")
+    monkeypatch.setattr(voice_providers, "_synthesize_elevenlabs", fake_eleven)
+
+    with pytest.raises(voice_providers.ElevenLabsPaymentRequired, match="ElevenLabs payment required"):
+        await voice_providers.synthesize_speech(
+            "text",
+            provider="elevenlabs",
+            output_path=str(tmp_path / "out.mp3"),
+        )
+
+
+@pytest.mark.asyncio
 async def test_list_elevenlabs_voices_returns_compact_voice_list(monkeypatch):
     class FakeResponse:
         def raise_for_status(self):

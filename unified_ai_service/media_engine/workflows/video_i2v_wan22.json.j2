@@ -13,10 +13,17 @@
       "weight_dtype": "default"
     }
   },
-  "model_sampling": {
+  "model_sampling_high": {
     "class_type": "ModelSamplingSD3",
     "inputs": {
       "model": ["unet_high", 0],
+      "shift": 8.0
+    }
+  },
+  "model_sampling_low": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": {
+      "model": ["unet_low", 0],
       "shift": 8.0
     }
   },
@@ -68,10 +75,10 @@
       "batch_size": 1
     }
   },
-  "sampler": {
+  "sampler_high": {
     "class_type": "KSampler",
     "inputs": {
-      "model": ["model_sampling", 0],
+      "model": ["model_sampling_high", 0],
       "positive": ["i2v", 0],
       "negative": ["i2v", 1],
       "latent_image": ["i2v", 2],
@@ -83,10 +90,25 @@
       "denoise": 1.0
     }
   },
+  "sampler_low": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["model_sampling_low", 0],
+      "positive": ["i2v", 0],
+      "negative": ["i2v", 1],
+      "latent_image": ["sampler_high", 0],
+      "seed": {{ seed }},
+      "steps": 10,
+      "cfg": 1.0,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 0.5
+    }
+  },
   "decode": {
     "class_type": "VAEDecode",
     "inputs": {
-      "samples": ["sampler", 0],
+      "samples": ["sampler_low", 0],
       "vae": ["vae", 0]
     }
   },

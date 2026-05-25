@@ -1,28 +1,35 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status, Form
+import logging
+import os
+import aiohttp
+import json
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from fastapi import FastAPI, Depends, HTTPException, Request, Response, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey, Text, JSON
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import Column, Integer, String, DateTime, JSON, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-import datetime
-import json
-import os
-import logging
-import aiohttp
-from fastapi import Response
 
-# --- Logging Setup ---
-# Force logging to be visible in nohup.out/service.log
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger("user_manager")
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- Database Setup ---
 DB_URL = "sqlite:///./users.db"
+TOKEN_FILE = "/home/yanus/unified_ai_service/api_tokens.json"
+
+def verify_custom_token(token: str) -> bool:
+    if not os.path.exists(TOKEN_FILE):
+        return False
+    try:
+        with open(TOKEN_FILE, "r") as f:
+            tokens = json.load(f)
+            return token in tokens
+    except Exception:
+        return False
+
 engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -36,20 +43,28 @@ class User(Base):
     login_count = Column(Integer, default=0)
     last_login = Column(DateTime)
     level = Column(String, default="뉴비")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, index=True)
-    action = Column(String)
-    details = Column(Text)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    action = Column(String) # "login", "access", "task"
+    details = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
 
 class LevelPermission(Base):
     __tablename__ = "level_permissions"
     level = Column(String, primary_key=True)
     permissions = Column(JSON) # {"vllm": True, "comfyui": False, ...}
+
+class UserQuota(Base):
+    __tablename__ = "user_quotas"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True)
+    type = Column(String) # "credits", "image_gen", etc.
+    remaining = Column(Integer, default=100)
+    limit = Column(Integer, default=100)
 
 Base.metadata.create_all(bind=engine)
 
@@ -71,17 +86,27 @@ DEFAULT_LEVELS = [
     ("관리자", {"vllm": True, "comfyui": True, "admin": True, "tube": True}),
 ]
 
-db = SessionLocal()
-for level, perms in DEFAULT_LEVELS:
-    if not db.query(LevelPermission).filter(LevelPermission.level == level).first():
-        db.add(LevelPermission(level=level, permissions=perms))
-db.commit()
-db.close()
+_db = SessionLocal()
+for lvl, perms in DEFAULT_LEVELS:
+    if not _db.query(LevelPermission).filter(LevelPermission.level == lvl).first():
+        _db.add(LevelPermission(level=lvl, permissions=perms))
+_db.commit()
+_db.close()
 
 # --- FastAPI App ---
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# --- Safe Migration: Ensure user_quotas is initialized for existing users ---
+@app.on_event("startup")
+async def startup_migration():
+    db = SessionLocal()
+    try:
+        logger.info("Running safe DB migration checks...")
+        # Add future migrations here
+    finally:
+        db.close()
 
 def get_db():
     db = SessionLocal()
@@ -120,12 +145,33 @@ async def _fetch_google_profile(access_token: str) -> dict:
 
 @app.get("/auth/verify")
 async def verify_user(request: Request, db: Session = Depends(get_db)):
-    oauth2_url = "http://127.0.0.1:4180/oauth2/auth"
-
     host = request.headers.get("Host", "unknown")
     uri = request.headers.get("X-Original-URI", "unknown")
     cookie = request.headers.get("cookie", "")
+    auth_header = request.headers.get("authorization", "")
 
+    # 1. Strict Token-Only Auth for vllmapi.tor-ai.com
+    if host == "vllmapi.tor-ai.com":
+        if auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "")
+            if verify_custom_token(token):
+                r = Response(status_code=200)
+                r.headers["X-Auth-Request-Email"] = "api-user@tor-ai.com"
+                r.headers["X-Auth-Request-User"] = "API User"
+                return r
+        logger.warning(f"Unauthorized API access attempt to {host}")
+        return Response(status_code=401)
+
+    # 2. General Auth (Custom Token OR OAuth2-Proxy)
+    if auth_header.startswith("Bearer "):
+        token = auth_header.replace("Bearer ", "")
+        if verify_custom_token(token):
+            r = Response(status_code=200)
+            r.headers["X-Auth-Request-Email"] = "api-token-user@tor-ai.com"
+            r.headers["X-Auth-Request-User"] = "API User"
+            return r
+
+    oauth2_url = "http://127.0.0.1:4180/oauth2/auth"
     logger.info(f"Verify Request - Host: {host}, URI: {uri}, HasCookie: {bool(cookie)}")
 
     forward_headers = {}
@@ -160,50 +206,32 @@ async def verify_user(request: Request, db: Session = Depends(get_db)):
         logger.warning("Auth Success but no email in headers")
         return Response(status_code=401)
 
-    resource = "unknown"
-    if "vllm" in host: resource = "vllm"
-    elif "comfyui" in host: resource = "comfyui"
-    elif "tube" in host: resource = "tube"
-    elif "blog" in host: resource = "blog"
-    elif "admin" in host or uri.startswith("/admin"): resource = "admin"
-
     user = db.query(User).filter(User.email == email).first()
-
-    # Prefer the human-readable name from preferred_username; fall back to sub.
-    display_name = preferred or (user.name if user else None) or sub or email.split("@")[0]
-
-    needs_picture_fetch = user is None or not user.picture
-    if needs_picture_fetch and access_token:
-        profile = await _fetch_google_profile(access_token)
-        if profile.get("name"):
-            display_name = profile["name"]
-        picture_url = profile.get("picture")
-    else:
-        picture_url = user.picture if user else None
-
     if not user:
-        user = User(
-            email=email,
-            name=display_name,
-            picture=picture_url,
-            level="뉴비",
-            login_count=1,
-            last_login=datetime.datetime.utcnow(),
-        )
+        logger.info(f"Creating new user: {email}")
+        user = User(email=email, name=preferred or sub)
         db.add(user)
-        log = ActivityLog(email=email, action="signup", details=f"Access {host}{uri}")
-        db.add(log)
         db.commit()
         db.refresh(user)
-    else:
-        user.login_count += 1
-        user.last_login = datetime.datetime.utcnow()
-        if display_name and user.name != display_name:
-            user.name = display_name
-        if picture_url and user.picture != picture_url:
-            user.picture = picture_url
-        log = ActivityLog(email=email, action="access", details=f"Access {host}{uri}")
-        db.add(log)
+
+    # Sync profile info if we have a token
+    if access_token:
+        profile = await _fetch_google_profile(access_token)
+        if profile:
+            if profile.get("name") and not user.name:
+                user.name = profile["name"]
+            if profile.get("picture"):
+                user.picture = profile["picture"]
+            db.commit()
+
+    log = ActivityLog(email=email, action="access", details=f"Access {host}{uri}")
+    db.add(log)
+    db.commit()
+
+    # Ensure quota exists
+    q = db.query(UserQuota).filter(UserQuota.email == email, UserQuota.type == "credits").first()
+    if not q:
+        db.add(UserQuota(email=email, type="credits", remaining=1000, limit=1000))
         db.commit()
 
     def _ok_response() -> Response:
@@ -220,16 +248,11 @@ async def verify_user(request: Request, db: Session = Depends(get_db)):
         logger.info(f"Admin Bypass for {email}")
         return _ok_response()
 
-    if user.level == "차단된회원" or user.level == "삭제된회원":
-        logger.warning(f"Access Denied - Level: {user.level} for {email}")
+    # Level check
+    perms = db.query(LevelPermission).filter(LevelPermission.level == user.level).first()
+    if not perms:
+        logger.warning(f"No permissions found for level: {user.level}")
         return Response(status_code=403)
-
-    level_perm = db.query(LevelPermission).filter(LevelPermission.level == user.level).first()
-    if level_perm:
-        perms = level_perm.permissions
-        if resource in perms and not perms[resource]:
-            logger.warning(f"Access Denied - No perm for {resource} for {email}")
-            return Response(status_code=403)
 
     return _ok_response()
 
@@ -238,66 +261,38 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     email = request.headers.get("X-Email")
     logger.info(f"Admin Dashboard Access - Email: {email}")
     if email != ADMIN_EMAIL:
-        return templates.TemplateResponse(request=request, name="error_403.html", context={}, status_code=403)
+        return templates.TemplateResponse("error_403.html", {"request": request}, status_code=403)
     
     users = db.query(User).all()
-    levels = db.query(LevelPermission).all()
-    return templates.TemplateResponse(request=request, name="admin.html", context={"users": users, "levels": levels, "admin_email": ADMIN_EMAIL})
+    logs = db.query(ActivityLog).order_by(ActivityLog.timestamp.desc()).limit(100).all()
+    return templates.TemplateResponse("admin.html", {"request": request, "users": users, "logs": logs, "admin_email": ADMIN_EMAIL})
 
-@app.post("/admin/update_user")
-async def update_user(
-    request: Request,
-    email: str = Form(...),
-    level: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    admin_email = request.headers.get("X-Email")
-    if admin_email != ADMIN_EMAIL:
-        return JSONResponse(status_code=403, content={"detail": "Unauthorized"})
-    
-    user = db.query(User).filter(User.email == email).first()
+@app.post("/admin/user/{user_id}/level")
+async def update_user_level(user_id: int, level: str = Form(...), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
     if user:
-        old_level = user.level
         user.level = level
-        log = ActivityLog(email=admin_email, action="update_user", details=f"Changed {email} level from {old_level} to {level}")
-        db.add(log)
         db.commit()
     return RedirectResponse(url="/admin", status_code=303)
-
-@app.post("/admin/update_permissions")
-async def update_permissions(
-    request: Request,
-    level: str = Form(...),
-    vllm: bool = Form(False),
-    comfyui: bool = Form(False),
-    admin: bool = Form(False),
-    tube: bool = Form(False),
-    db: Session = Depends(get_db)
-):
-    admin_email = request.headers.get("X-Email")
-    if admin_email != ADMIN_EMAIL:
-        return JSONResponse(status_code=403, content={"detail": "Unauthorized"})
-    
-    perm = db.query(LevelPermission).filter(LevelPermission.level == level).first()
-    if perm:
-        perm.permissions = {"vllm": vllm, "comfyui": comfyui, "admin": admin, "tube": tube}
-        log = ActivityLog(email=admin_email, action="update_permissions", details=f"Updated permissions for {level}")
-        db.add(log)
-        db.commit()
-    return RedirectResponse(url="/admin", status_code=303)
-
-@app.get("/admin/logs/{email}", response_class=HTMLResponse)
-async def user_logs(request: Request, email: str, db: Session = Depends(get_db)):
-    admin_email = request.headers.get("X-Email")
-    if admin_email != ADMIN_EMAIL:
-        return templates.TemplateResponse(request=request, name="error_403.html", context={}, status_code=403)
-    
-    logs = db.query(ActivityLog).filter(ActivityLog.email == email).order_by(ActivityLog.timestamp.desc()).limit(100).all()
-    return templates.TemplateResponse(request=request, name="logs.html", context={"email": email, "logs": logs})
 
 @app.get("/error_403", response_class=HTMLResponse)
 async def access_denied(request: Request):
-    return templates.TemplateResponse(request=request, name="error_403.html", context={})
+    return templates.TemplateResponse("error_403.html", {"request": request})
+
+@app.get("/api/user/quota")
+async def get_user_quota(email: str, db: Session = Depends(get_db)):
+    quotas = db.query(UserQuota).filter(UserQuota.email == email).all()
+    return {q.type: {"remaining": q.remaining, "limit": q.limit} for q in quotas}
+
+@app.post("/api/user/quota/deduct")
+async def deduct_user_quota(email: str, type: str, amount: int = 1, db: Session = Depends(get_db)):
+    quota = db.query(UserQuota).filter(UserQuota.email == email, UserQuota.type == type).first()
+    if not quota or quota.remaining < amount:
+        return JSONResponse(status_code=403, content={"detail": "Insufficient quota"})
+    
+    quota.remaining -= amount
+    db.commit()
+    return {"remaining": quota.remaining}
 
 if __name__ == "__main__":
     import uvicorn

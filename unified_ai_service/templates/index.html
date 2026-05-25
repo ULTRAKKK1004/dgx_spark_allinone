@@ -1,989 +1,592 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Hub</title>
-    <script src="https://cdn.tailwindcss.com">
-async function submitMediaTask(type) {
-    const formData = new FormData();
-    let endpoint = "";
-    
-    try {
-        if (type === 'image') {
-            formData.append('prompt', document.getElementById('imgPrompt').value);
-            endpoint = "/api/media/image";
-        } else if (type === 'music') {
-            formData.append('prompt', document.getElementById('musicPrompt').value);
-            formData.append('duration', document.getElementById('musicDur').value);
-            endpoint = "/api/media/music";
-        } else if (type === 'tts') {
-            formData.append('text', document.getElementById('ttsText').value);
-            formData.append('ref_text', document.getElementById('ttsRefText').value);
-            const refFile = document.getElementById('ttsRefAudio').files[0];
-            if (refFile) formData.append('ref_audio', refFile);
-            endpoint = "/api/media/tts";
-        } else if (type === 'video_gen') {
-            const baseImg = document.getElementById('vidGenBaseImg').files[0];
-            if(!baseImg) { alert('Base image required for video gen'); return; }
-            formData.append('base_image', baseImg);
-            const purpose = document.getElementById('vidGenType').value;
-            const userP = document.getElementById('vidGenPrompt').value;
-            formData.append('prompt', "[" + purpose + "] " + userP);
-            formData.append('duration', document.getElementById('vidGenDur').value);
-            endpoint = "/api/media/video/gen";
-        } else if (type === 'video_edit' || type === 'video_shorts' || type === 'video_analyze') {
-            const vidFile = document.getElementById('vidEditTarget').files[0];
-            if(!vidFile) { alert('Target video required'); return; }
-            formData.append('video', vidFile);
-            const audFile = document.getElementById('vidEditAudio').files[0];
-            if(audFile) formData.append('audio', audFile);
-            formData.append('prompt', document.getElementById('vidEditPrompt').value);
-            
-            if (type === 'video_edit') endpoint = "/api/media/video/edit";
-            if (type === 'video_shorts') endpoint = "/api/media/video/shorts";
-            if (type === 'video_analyze') endpoint = "/api/media/video/analyze";
-        }
-        
-        addMessage("[Task Started] " + type.toUpperCase(), 'user');
-        
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Authorization': "Bearer " + localStorage.getItem('api_token') },
-            body: formData
-        });
-        
-        const data = await response.json();
-        if (data.job_id) {
-            addMessage("Task queued. Job ID: " + data.job_id + ". Checking Tasks tab...", 'bot');
-            startPolling(data.job_id);
-            showTab('tasks');
-        } else {
-            addMessage('Error: ' + JSON.stringify(data), 'bot');
-        }
-    } catch (e) {
-        console.error(e);
-        addMessage('Submission failed: ' + e, 'bot');
-    }
-}
-
-</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Multimodal AI Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
         :root {
-            --brand-primary: #10b981; /* Emerald */
-            --brand-secondary: #f59e0b; /* Amber/Gold */
+            --primary: #10b981;
+            --primary-dark: #059669;
             --bg-dark: #0f172a;
             --bg-card: #1e293b;
-            --border-muted: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.1);
         }
-        body { font-family: 'Outfit', sans-serif; background-color: var(--bg-dark); color: #f1f5f9; }
-        .glass { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(20px); border: 1px solid var(--border-muted); }
-        .emerald-gradient { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
-        .gold-gradient { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
-        .text-gradient { background: linear-gradient(135deg, #10b981 0%, #f59e0b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .tab-active { color: var(--brand-primary); border-bottom: 2px solid var(--brand-primary); }
-        .card-neo { background: #1e293b; border: 1px solid var(--border-muted); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); transition: all 0.3s ease; }
-        .card-neo:hover { border-color: rgba(16, 185, 129, 0.4); transform: translateY(-3px); }
-        input, textarea, select { background: #0f172a !important; border: 1px solid rgba(255,255,255,0.1) !important; color: #f1f5f9 !important; }
-        input:focus, textarea:focus, select:focus { border-color: var(--brand-primary) !important; outline: none !important; }
-        .btn-emerald { background: var(--brand-primary); transition: all 0.2s; }
-        .btn-emerald:hover { background: #059669; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
-        .btn-gold { background: var(--brand-secondary); transition: all 0.2s; }
-        .btn-gold:hover { background: #d97706; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-dark); color: #f1f5f9; overflow-x: hidden; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(20px); border: 1px solid var(--border); }
+        .btn-primary { background: var(--primary); transition: all 0.2s; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1.5rem; transition: all 0.3s; position: relative; overflow: hidden; }
+        
+        /* Layout */
+        .app-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            height: 100dvh;
+            width: 100vw;
+        }
+        @media (max-width: 1024px) { 
+            .app-grid { grid-template-columns: 1fr; } 
+            .sidebar { display: none; } 
+        }
+        
+        .tab-content { display: none; height: 100%; overflow-y: auto; }
+        .tab-content.active { display: block; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         
-        /* Profile Dropdown Styles */
-        .profile-dropdown {
-            position: relative;
-            display: inline-block;
-        }
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            right: 0;
-            top: 100%;
-            background-color: #1e293b;
-            min-width: 240px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            border-radius: 1rem;
-            z-index: 100;
-            margin-top: 0.5rem;
-            border: 1px solid rgba(255,255,255,0.1);
-            overflow: hidden;
-            animation: fadeIn 0.2s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .dropdown-content.show {
-            display: block;
-        }
-        .dropdown-item {
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: #94a3b8;
-            text-decoration: none;
-            transition: all 0.2s;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        .dropdown-item:hover {
-            background-color: rgba(255,255,255,0.05);
-            color: #fff;
-        }
-        .dropdown-item.danger {
-            color: #ef4444;
-        }
-        .dropdown-item.danger:hover {
-            background-color: rgba(239, 68, 68, 0.1);
-        }
-        .dropdown-header {
-            padding: 15px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            background: rgba(255,255,255,0.02);
-        }
+        /* Animations */
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-up { animation: slideUp 0.4s ease-out; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
-    <!-- Header -->
-    <header class="glass sticky top-0 z-50 px-3 sm:px-8 py-3 sm:py-4 flex justify-between items-center border-b border-white/5 gap-2">
-        <div class="flex items-center space-x-2 sm:space-x-4 min-w-0">
-            <div class="emerald-gradient p-2 sm:p-2.5 rounded-xl shadow-lg flex-shrink-0">
-                <i class="fas fa-microchip text-white text-base sm:text-xl"></i>
+<body class="antialiased overflow-hidden">
+    <div class="app-grid">
+        <!-- Sidebar -->
+        <aside class="sidebar glass border-r flex flex-col p-6 space-y-8 overflow-y-auto">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/20">
+                    <i class="fas fa-brain text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">AI Hub</h1>
+                    <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Phase C Studio</p>
+                </div>
             </div>
-            <a href="/" class="mr-2 sm:mr-4 text-slate-400 hover:text-white transition flex items-center justify-center w-10 h-10 rounded-xl hover:bg-white/5"><i class="fas fa-home text-lg"></i></a><div class="min-w-0">
-                <h1 class="text-lg sm:text-2xl font-bold tracking-tight text-gradient truncate">AI Hub</h1>
-                <p class="hidden sm:block text-[10px] text-emerald-500 uppercase tracking-[0.2em] font-bold">Advanced AI Infrastructure</p>
-            </div>
-        </div>
 
-        <nav class="flex items-center space-x-3 sm:space-x-6 lg:space-x-8 text-sm font-semibold flex-shrink-0">
-            <button id="nav-studio" onclick="showTab('studio')" class="nav-btn tab-active py-1">Studio</button>
-            <button id="nav-tasks" onclick="showTab('tasks')" class="nav-btn text-slate-400 hover:text-white transition py-1 hidden sm:inline-block">Tasks &amp; History</button>
-            <button id="nav-api" onclick="showTab('api')" class="nav-btn text-slate-400 hover:text-white transition py-1 hidden md:inline-block">API Keys</button>
-            <a href="/lecture/" class="hidden lg:flex px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition items-center space-x-2">
-                <i class="fas fa-video text-emerald-500"></i>
-                <span>Lecture Studio</span>
-            </a>
-
-            <!-- User Profile Dropdown -->
-            <div class="profile-dropdown">
-                <button onclick="toggleDropdown()" class="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-white/5 transition border border-transparent hover:border-white/10">
-                    <img src="{{ user_image }}" alt="User" class="w-8 h-8 rounded-lg shadow-inner object-cover" onerror="this.src='https://ui-avatars.com/api/?name={{ user_name }}&background=10b981&color=fff'">
-                    <i class="fas fa-chevron-down text-[10px] text-slate-500"></i>
+            <nav class="flex-grow space-y-2">
+                <button onclick="switchTab('studio')" id="nav-studio" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl bg-emerald-500/10 text-emerald-400 font-bold transition">
+                    <i class="fas fa-wand-magic-sparkles"></i>
+                    <span>AI Studio</span>
                 </button>
-                <div id="profileDropdown" class="dropdown-content">
-                    <div class="dropdown-header">
-                        <div class="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-1">Signed in as</div>
-                        <div class="text-sm font-bold truncate">{{ user_name }}</div>
-                        <div class="text-[10px] text-slate-400 truncate">{{ user_email }}</div>
-                    </div>
-                    <div class="py-2 sm:hidden border-b border-white/5">
-                        <div class="dropdown-item" onclick="showTab('tasks'); toggleDropdown()">
-                            <i class="fas fa-list-check w-5"></i>
-                            <span>Tasks &amp; History</span>
-                        </div>
-                        <div class="dropdown-item" onclick="showTab('api'); toggleDropdown()">
-                            <i class="fas fa-key w-5"></i>
-                            <span>API Keys</span>
-                        </div>
-                        <a href="/lecture/" class="dropdown-item">
-                            <i class="fas fa-video w-5 text-emerald-500"></i>
-                            <span>Lecture Studio</span>
-                        </a>
-                    </div>
-                    <div class="py-2">
-                        <div class="dropdown-item" onclick="showUserInfo()">
-                            <i class="fas fa-user-circle w-5"></i>
-                            <span>User Information</span>
-                        </div>
-                        <a href="/logout" class="dropdown-item">
-                            <i class="fas fa-sign-out-alt w-5"></i>
-                            <span>Logout</span>
-                        </a>
-                        <div class="dropdown-item danger" onclick="unregisterUser()">
-                            <i class="fas fa-user-slash w-5"></i>
-                            <span>Unregister (Delete Account)</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </nav>
-    </header>
+                <button onclick="switchTab('history')" id="nav-history" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 transition">
+                    <i class="fas fa-history"></i>
+                    <span>Task History</span>
+                </button>
+                <button onclick="switchTab('gallery')" id="nav-gallery" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 transition">
+                    <i class="fas fa-images"></i>
+                    <span>Gallery</span>
+                </button>
 
-    <main class="flex-grow container mx-auto px-6 py-10">
-        <!-- Studio View -->
-        <div id="tab-studio" class="space-y-10">
-            <!-- LLM & Settings Row -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                <!-- System Settings (New) -->
-                <div class="card-neo rounded-3xl p-7 space-y-5 lg:col-span-1 border-t-4 border-t-emerald-500">
-                    <div class="flex items-center space-x-3">
-                        <i class="fas fa-sliders text-emerald-500 text-xl"></i>
-                        <h2 class="text-xl font-bold">Model Parameters</h2>
-                    </div>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">System Prompt</label>
-                            <textarea id="sysPrompt" rows="3" class="w-full rounded-xl p-3 text-sm" placeholder="You are a helpful AI..."></textarea>
-                        </div>
-                        <div>
-                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Agent Mode</label>
-                            <select id="agentMode" class="w-full rounded-xl p-3 text-sm" onchange="updateSysPrompt()">
-                                <option value="general">General Assistant</option>
-                                <option value="coder">Expert Coder</option>
-                                <option value="analyst">Data Analyst (RAG Ready)</option>
-                                <option value="creative">Creative Writer</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chat Card -->
-                <div class="card-neo rounded-3xl p-7 space-y-5 lg:col-span-2">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                                <i class="fas fa-comment-dots text-emerald-500"></i>
-                            </div>
-                            <h2 class="text-xl font-bold">Gemma-4 Chat</h2>
-                        </div>
-                        <span class="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase">vLLM / Gemma-4 26B MoE</span>
-                    </div>
-                    
-                    <div id="chatHistoryBox" class="bg-slate-950/50 rounded-2xl p-5 h-64 overflow-y-auto text-sm space-y-4 border border-white/5 hidden">
-                        <!-- Chat history bubbles -->
-                    </div>
-                    
-                    <textarea id="llmPrompt" rows="3" class="w-full rounded-2xl p-5 outline-none resize-none placeholder-slate-500" placeholder="Ask Gemma-4 anything..."></textarea>
-                    
-                    <div class="flex space-x-4">
-                        <button onclick="clearChat()" class="px-6 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition">Clear</button>
-                        <button id="btnLlm" onclick="runLLM()" class="flex-1 py-4 btn-emerald text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-3">
-                            <span>Send Prompt</span>
-                            <i class="fas fa-paper-plane text-sm"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Multimodal Command Center -->
-            <div class="card-neo rounded-3xl p-7 space-y-5 border-t-4 border-t-blue-500">
-                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                            <i class="fas fa-wand-magic-sparkles text-blue-400"></i>
-                        </div>
-                        <div>
-                            <h2 class="text-xl font-bold">Multimodal AI</h2>
-                            <p class="text-xs text-slate-500 font-semibold">Route one request across image, audio, voice, video, PPT, and analysis tools.</p>
-                        </div>
-                    </div>
-                    <div class="flex flex-wrap gap-3">
-                        <select id="multimodalQuality" class="rounded-xl px-4 py-3 text-sm">
-                            <option value="standard">Standard</option>
-                            <option value="draft">Draft</option>
-                            <option value="high">High Quality</option>
-                        </select>
-                        <select id="multimodalVoiceProvider" class="rounded-xl px-4 py-3 text-sm">
-                            <option value="auto">Voice Auto</option>
-                            <option value="local_f5">Local F5</option>
-                            <option value="elevenlabs">ElevenLabs</option>
-                        </select>
-                        <select id="multimodalVoice" class="rounded-xl px-4 py-3 text-sm min-w-56">
-                            <option value="airYK6ydeWdrJg6gyZA3">Default: airYK6ydeWdrJg6gyZA3</option>
-                        </select>
-                        <button onclick="loadElevenLabsVoices()" class="rounded-xl px-4 py-3 text-sm bg-slate-800 hover:bg-slate-700 text-white font-bold transition">
-                            <i class="fas fa-rotate"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <textarea id="multimodalInstruction" rows="4" class="w-full rounded-2xl p-5 outline-none resize-none placeholder-slate-500" placeholder="예: 이 이미지를 분석해서 발표자료를 만들고, 자연스러운 강의 음성으로 읽어줘."></textarea>
-
-                <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-stretch">
-                    <label class="group relative bg-slate-950/50 border border-dashed border-white/10 rounded-2xl p-5 flex items-center justify-center hover:border-blue-400/60 transition cursor-pointer">
-                        <input type="file" id="multimodalFiles" multiple accept="image/*,audio/*,video/*,.pdf,.ppt,.pptx,.txt,.md" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleMultimodalFileSelection()">
-                        <div class="text-center">
-                            <i class="fas fa-paperclip text-2xl text-slate-500 group-hover:text-blue-400 mb-2 transition"></i>
-                            <p id="multimodalFileLabel" class="text-xs text-slate-400 group-hover:text-slate-200">Attach images, audio, video, or documents</p>
-                            <button type="button" onclick="event.preventDefault(); event.stopPropagation(); clearMultimodalFiles();" class="mt-3 text-[11px] text-slate-500 hover:text-red-300 font-bold">Clear files</button>
-                        </div>
-                    </label>
-                    <button id="btnMultimodal" onclick="runMultimodal()" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-3 transition">
-                        <span>Run Multimodal Task</span>
-                        <i class="fas fa-diagram-project text-sm"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Multimodal Row -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Vision Card -->
-                <div class="card-neo rounded-3xl p-7 space-y-5">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
-                            <i class="fas fa-eye text-amber-500"></i>
-                        </div>
-                        <h2 class="text-xl font-bold">Vision Analysis</h2>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="group relative bg-slate-950/50 border border-dashed border-white/10 rounded-2xl p-6 text-center hover:border-amber-500/50 transition">
-                            <input type="file" id="vlmImage" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                            <i class="fas fa-cloud-arrow-up text-3xl text-slate-500 group-hover:text-amber-500 mb-2 transition"></i>
-                            <p class="text-xs text-slate-400 group-hover:text-slate-200">Click or drag image</p>
-                        </div>
-                        <input type="text" id="vlmPrompt" class="w-full rounded-2xl p-4 outline-none placeholder-slate-500" placeholder="Analyze this image...">
-                    </div>
-                    <button id="btnVlm" onclick="runTask('vlm')" class="w-full py-4 btn-gold text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-3">
-                        <span>Analyze Vision</span>
-                        <i class="fas fa-magnifying-glass text-sm"></i>
-                    </button>
-                </div>
-
-                <!-- STT Card -->
-                <div class="card-neo rounded-3xl p-7 space-y-5 border-l-4 border-l-emerald-500">
-                    <div class="flex items-center space-x-3">
-                        <i class="fas fa-waveform-lines text-emerald-500 text-xl"></i>
-                        <h2 class="text-xl font-bold">Whisper STT</h2>
-                    </div>
-                    <input type="file" id="sttAudio" accept="audio/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-500 file:text-white hover:file:bg-emerald-400 cursor-pointer">
-                    <button id="btnStt" onclick="runTask('stt')" class="w-full py-4 btn-emerald text-white rounded-2xl font-bold transition flex items-center justify-center space-x-3">
-                        <span>Transcribe</span>
-                        <i class="fas fa-ear-listen text-sm"></i>
-                    </button>
-                </div>
-
-                <!-- PPT Card -->
-                <div class="card-neo rounded-3xl p-7 space-y-5 border-l-4 border-l-amber-500">
-                    <div class="flex items-center space-x-3">
-                        <i class="fas fa-display text-amber-500 text-xl"></i>
-                        <h2 class="text-xl font-bold">Auto-PPTX</h2>
-                    </div>
-                    <input type="text" id="pptTopic" class="w-full rounded-2xl p-4 outline-none placeholder-slate-500" placeholder="Presentation topic...">
-                    <button id="btnPpt" onclick="runTask('ppt')" class="w-full py-4 btn-gold text-white rounded-2xl font-bold transition flex items-center justify-center space-x-3">
-                        <span>Generate Slides</span>
-                        <i class="fas fa-file-powerpoint text-sm"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Creative Hub Footer -->
-            <div class="glass rounded-[2rem] p-10 flex flex-col md:flex-row items-center justify-between bg-slate-900/40 border-emerald-500/20">
-                <div class="mb-8 md:mb-0 text-center md:text-left">
-                    <h3 class="text-3xl font-black mb-2 italic">DGX Creative Suite</h3>
-                    <p class="text-slate-400 font-medium">Access dedicated GPU clusters for high-fidelity image and video synthesis.</p>
-                </div>
-                <div class="flex flex-wrap justify-center gap-4">
-                    <a href="https://comfyui.tor-ai.com" target="_blank" class="px-8 py-4 emerald-gradient text-white rounded-2xl font-black shadow-xl shadow-emerald-900/40 flex items-center space-x-3 hover:scale-105 transition">
-                        <i class="fas fa-palette"></i>
-                        <span>COMFYUI STUDIO</span>
+                <!-- Admin Button (Condition in JS) -->
+                <div id="admin-section" class="hidden pt-4">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase px-4 mb-2">Management</p>
+                    <a href="/admin" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-amber-400 hover:bg-amber-500/10 transition">
+                        <i class="fas fa-user-shield"></i>
+                        <span>Admin Console</span>
                     </a>
                 </div>
-            </div>
-        </div>
 
-        <!-- Tasks & History Tab -->
-        <div id="tab-tasks" class="hidden animate-fade-in space-y-8">
-            <div class="flex justify-between items-center">
-                <h2 class="text-3xl font-bold">Background Tasks & History</h2>
-                <button onclick="loadJobs()" class="btn-emerald px-4 py-2 rounded-lg font-bold text-white"><i class="fas fa-sync-alt"></i> Refresh</button>
+                <div class="pt-4">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase px-4 mb-2">Settings</p>
+                    <button onclick="generateApiKey()" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 transition text-left">
+                        <i class="fas fa-key"></i>
+                        <span>Generate API Key</span>
+                    </button>
+                    <a href="/logout" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:text-red-400 hover:bg-white/5 transition lg:hidden">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="pt-6 border-t border-white/5">
+                <div class="bg-slate-900/50 rounded-2xl p-4 space-y-3">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-500 font-bold uppercase tracking-tighter">Usage Quota</span>
+                        <span class="text-emerald-500 font-bold" id="quota-val">...</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                        <div id="quota-bar" class="bg-emerald-500 h-full" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
             
-            <div id="jobsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Jobs will be loaded here -->
+            <div class="flex items-center space-x-3 p-2">
+                <img src="{{ user_image }}" class="w-10 h-10 rounded-full border border-white/10" onerror="this.src='https://ui-avatars.com/api/?name={{ user_name }}'">
+                <div class="min-w-0">
+                    <p class="text-sm font-bold truncate">{{ user_name }}</p>
+                    <p class="text-[10px] text-slate-500 truncate">{{ user_email }}</p>
+                </div>
             </div>
-        </div>
+        </aside>
 
-        <!-- API Tab -->
-        <div id="tab-api" class="hidden animate-fade-in">
-            <!-- (Same as before, omitted for brevity but intact structure) -->
-            <div class="card-neo rounded-3xl p-10 max-w-5xl mx-auto space-y-10">
-                <div class="flex items-center justify-between border-b border-white/5 pb-8">
-                    <div>
-                        <h2 class="text-3xl font-bold mb-2">API Infrastructure</h2>
-                        <p class="text-slate-400">Tokens required for secure remote execution via CLI or external apps.</p>
-                    </div>
-                    <button onclick="document.getElementById('tokenModal').classList.remove('hidden')" class="btn-emerald px-6 py-3 rounded-xl font-bold text-white">
-                        Create API Token
-                    </button>
+        <!-- Main Content -->
+        <main class="flex flex-col relative overflow-hidden">
+            <!-- Mobile Header & Nav -->
+            <header class="h-16 flex lg:hidden items-center justify-between px-4 border-b border-white/5 shrink-0 glass z-50">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-brain text-emerald-500"></i>
+                    <span class="font-bold">AI Hub</span>
                 </div>
-                <div class="overflow-hidden rounded-2xl border border-white/5">
-                    <table class="w-full">
-                        <thead class="bg-slate-950/50 text-slate-500 text-[10px] uppercase font-black tracking-widest">
-                            <tr>
-                                <th class="px-8 py-5 text-left">Label</th>
-                                <th class="px-8 py-5 text-left">Identifier</th>
-                                <th class="px-8 py-5 text-right">Settings</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tokenTableBody" class="divide-y divide-white/5 bg-slate-900/30"></tbody>
-                    </table>
+                <div class="flex space-x-4 text-slate-400">
+                    <button onclick="switchTab('studio')"><i class="fas fa-wand-magic-sparkles"></i></button>
+                    <button onclick="switchTab('history')"><i class="fas fa-history"></i></button>
+                    <button onclick="switchTab('gallery')"><i class="fas fa-images"></i></button>
                 </div>
-                <div class="bg-slate-950/60 rounded-2xl border border-white/5 p-6 space-y-4">
-                    <div class="flex items-center space-x-3">
-                        <i class="fas fa-diagram-project text-blue-400"></i>
-                        <h3 class="text-xl font-bold">Multimodal Execute API</h3>
-                    </div>
-                    <p class="text-sm text-slate-400">Submit one natural-language instruction with optional files. Poll the returned job id from <code class="text-emerald-400">/api/jobs/{job_id}</code>.</p>
-                    <pre class="bg-black/40 rounded-xl p-4 overflow-x-auto text-xs text-slate-300"><code>curl -X POST https://tor-ai.com/api/multimodal/execute \
-  -H "Authorization: Bearer $TOR_AI_TOKEN" \
-  -F "instruction=이 이미지를 분석해서 발표자료를 만들고 강의 음성으로 읽어줘" \
-  -F "quality=high" \
-  -F "preferred_voice_provider=elevenlabs" \
-  -F "files=@./slide-source.png"</code></pre>
-                    <pre class="bg-black/40 rounded-xl p-4 overflow-x-auto text-xs text-slate-300"><code>curl https://tor-ai.com/api/jobs/&lt;job_id&gt; \
-  -H "Authorization: Bearer $TOR_AI_TOKEN"</code></pre>
-                </div>
-            </div>
-        </div>
-    </main>
+            </header>
 
-    <!-- Modals (Token Creation) -->
-    <div id="tokenModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md">
-        <div class="glass max-w-md w-full rounded-[2rem] p-10 space-y-8 border-emerald-500/20">
-            <h3 class="text-2xl font-bold text-center">New Token Label</h3>
-            <input type="text" id="tokenLabel" class="w-full rounded-2xl p-4 outline-none text-center" placeholder="e.g. My Remote App">
-            <div class="grid grid-cols-2 gap-4">
-                <button onclick="document.getElementById('tokenModal').classList.add('hidden')" class="py-4 bg-slate-800 rounded-2xl font-bold">Cancel</button>
-                <button onclick="createToken()" class="py-4 btn-emerald text-white rounded-2xl font-bold">Generate</button>
+            <!-- Desktop Header -->
+            <header class="h-16 hidden lg:flex items-center justify-between px-8 border-b border-white/5 shrink-0">
+                <h2 id="view-title" class="text-lg font-bold">Multimodal AI Studio</h2>
+                <div class="flex items-center space-x-4">
+                    <a href="/logout" class="text-slate-500 hover:text-white transition"><i class="fas fa-sign-out-alt"></i></a>
+                </div>
+            </header>
+
+            <!-- Workspace Areas -->
+            <div class="flex-grow overflow-hidden relative">
+                <!-- Tab: Studio -->
+                <div id="tab-studio" class="tab-content active p-4 lg:p-8 space-y-8">
+                    <div id="chat-feed" class="max-w-4xl mx-auto space-y-6 pb-32">
+                        <!-- Welcome Card -->
+                        <div id="welcome-card" class="card p-8 text-center space-y-4">
+                            <div class="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto">
+                                <i class="fas fa-sparkles text-blue-400 text-2xl"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold">What can I create for you today?</h3>
+                            <p class="text-slate-400 max-w-md mx-auto text-sm lg:text-base">이미지, 오디오, 대본 등을 업로드하고 자연어로 지시하세요.</p>
+                            <div class="flex flex-wrap justify-center gap-2 pt-4 text-[10px] lg:text-xs">
+                                <button onclick="fillExample('강아지 이미지를 시네마틱하게 만들어줘')" class="px-4 py-2 bg-slate-800 rounded-full hover:bg-slate-700 transition">이미지 생성</button>
+                                <button onclick="fillExample('이 오디오를 텍스트로 변환해줘')" class="px-4 py-2 bg-slate-800 rounded-full hover:bg-slate-700 transition">STT</button>
+                                <button onclick="fillExample('이 사진 속 강사가 대본대로 말하는 강의 영상을 만들어줘')" class="px-4 py-2 bg-slate-800 rounded-full hover:bg-slate-700 transition">AI 강의</button>
+                            </div>
+                        </div>
+                        <!-- Result cards will appear here -->
+                    </div>
+                </div>
+
+                <!-- Tab: History -->
+                <div id="tab-history" class="tab-content p-4 lg:p-8">
+                    <div class="max-w-5xl mx-auto space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-xl font-bold">Task History</h3>
+                            <button onclick="loadHistory()" class="text-xs font-bold text-emerald-400 hover:underline"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+                        </div>
+                        <div id="history-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- History items -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Gallery -->
+                <div id="tab-gallery" class="tab-content p-4 lg:p-8">
+                    <div class="max-w-5xl mx-auto">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">Media Gallery</h3>
+                            <label class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold cursor-pointer transition text-sm">
+                                <i class="fas fa-upload mr-1"></i> Upload
+                                <input type="file" class="hidden" accept="image/*,video/*" onchange="uploadToGallery(this.files[0])">
+                            </label>
+                        </div>
+                        <div id="gallery-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-20">
+                            <!-- Media items -->
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+
+            <!-- Bottom Floating Input Bar -->
+            <div class="absolute bottom-0 left-0 right-0 p-4 lg:p-6 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent pointer-events-none">
+                <div class="max-w-4xl mx-auto pointer-events-auto">
+                    <!-- File Preview Area -->
+                    <div id="file-previews" class="flex flex-wrap gap-2 mb-3 empty:hidden bg-slate-900/80 p-3 rounded-2xl border border-white/5 overflow-x-auto max-h-24"></div>
+                    
+                    <!-- Main Input Container -->
+                    <div class="glass rounded-[2rem] p-2 shadow-2xl flex flex-col space-y-1 border-emerald-500/10">
+                        <textarea id="main-input" rows="1" class="w-full bg-transparent px-6 py-4 text-sm lg:text-base outline-none resize-none placeholder-slate-500" placeholder="지침 입력 및 파일 드래그..." oninput="autoResize(this)"></textarea>
+                        
+                        <div class="flex items-center justify-between px-4 pb-2">
+                            <div class="flex items-center space-x-1 lg:space-x-2">
+                                <!-- Multi-file trigger -->
+                                <label class="p-2 text-slate-400 hover:text-emerald-400 transition cursor-pointer flex items-center space-x-1">
+                                    <input type="file" id="file-input" multiple class="hidden" onchange="handleFiles(this.files)">
+                                    <i class="fas fa-paperclip text-lg lg:text-xl"></i>
+                                    <span class="hidden sm:inline text-[9px] font-bold uppercase tracking-wider">Attach</span>
+                                </label>
+                                
+                                <div class="h-4 w-px bg-white/5 mx-1 lg:mx-2"></div>
+                                
+                                <select id="voice-provider" class="bg-transparent text-[9px] font-bold text-slate-500 outline-none cursor-pointer hover:text-slate-300 transition uppercase max-w-[80px]">
+                                    <option value="elevenlabs">ElevenLabs</option>
+                                    <option value="local_f5">Local F5</option>
+                                </select>
+                                <select id="quality-selector" class="bg-transparent text-[9px] font-bold text-slate-500 outline-none cursor-pointer hover:text-slate-300 transition uppercase">
+                                    <option value="standard">Standard</option>
+                                    <option value="high">High</option>
+                                    <option value="draft">Draft</option>
+                                </select>
+                            </div>
+                            
+                            <button id="send-btn" onclick="requestPlan()" class="btn-primary w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-900/40">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
-    <div id="revealModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/95 backdrop-blur-xl">
-        <div class="glass max-w-xl w-full rounded-[2.5rem] p-12 text-center space-y-8 border-amber-500/20 shadow-2xl shadow-amber-500/10">
-            <div class="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-key text-3xl text-amber-500"></i>
+
+    <!-- Plan Approval Modal -->
+    <div id="plan-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+        <div class="glass max-w-2xl w-full rounded-3xl p-6 lg:p-8 space-y-6 shadow-2xl border-emerald-500/20 overflow-y-auto max-h-[90vh] animate-slide-up">
+            <div>
+                <h3 class="text-2xl font-bold mb-1">AI Task Plan</h3>
+                <p class="text-sm text-slate-400">Review execution steps.</p>
             </div>
-            <h3 class="text-3xl font-black uppercase">Token Generated</h3>
-            <div class="bg-slate-950 border border-white/10 rounded-2xl p-5 flex items-center justify-between">
-                <code id="newTokenValue" class="text-amber-400 font-mono text-xs break-all text-left pr-4"></code>
-                <button onclick="copyToClipboard('newTokenValue')" class="text-slate-400 hover:text-white"><i class="fas fa-copy"></i></button>
+            
+            <div id="plan-steps" class="space-y-3"></div>
+            
+            <div class="grid grid-cols-2 gap-4 pt-4">
+                <button onclick="closeModal('plan-modal')" class="py-4 bg-slate-800 rounded-2xl font-bold">Cancel</button>
+                <button id="confirm-execute-btn" onclick="executePlan()" class="py-4 btn-primary text-white rounded-2xl font-bold text-lg">Approve & Run</button>
             </div>
-            <button onclick="document.getElementById('revealModal').classList.add('hidden')" class="w-full py-5 btn-emerald text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/40">I Have Saved It</button>
         </div>
     </div>
 
     <script>
-        let chatHistory = [];
-        let pollingJobs = new Set();
-        let selectedMultimodalFiles = [];
+        let selectedFiles = [];
+        let currentPlanData = null;
+        const currentUserEmail = "{{ user_email }}";
 
-        const sysPrompts = {
-            general: "You are an advanced, highly intelligent AI assistant. Provide detailed, helpful, and polite answers.",
-            coder: "You are an expert Principal Software Engineer. Provide complete, bug-free, and well-commented code. Think step-by-step.",
-            analyst: "You are a Senior Data Analyst. Analyze inputs critically, structure data well, and prepare for RAG contexts. Use markdown tables where appropriate.",
-            creative: "You are a master storyteller and creative consultant. Provide engaging, vivid, and imaginative content."
-        };
-
-        function updateSysPrompt() {
-            const mode = document.getElementById('agentMode').value;
-            document.getElementById('sysPrompt').value = sysPrompts[mode];
-        }
-
-        // Initialize Defaults
-        document.getElementById('sysPrompt').value = sysPrompts['general'];
-
-        function showTab(tabId) {
-            document.querySelectorAll('.nav-btn').forEach(b => {
-                b.classList.remove('tab-active', 'text-white');
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            
+            document.querySelectorAll('nav button').forEach(b => {
+                b.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'font-bold');
                 b.classList.add('text-slate-400');
             });
-            
-            const activeBtn = document.getElementById('nav-' + tabId);
-            if(activeBtn) {
-                activeBtn.classList.add('tab-active', 'text-white');
-                activeBtn.classList.remove('text-slate-400');
+            const btn = document.getElementById('nav-' + tabId);
+            if (btn) {
+                btn.classList.add('bg-emerald-500/10', 'text-emerald-400', 'font-bold');
+                btn.classList.remove('text-slate-400');
             }
-            
-            document.getElementById('tab-studio').classList.add('hidden');
-            document.getElementById('tab-tasks').classList.add('hidden');
-            document.getElementById('tab-api').classList.add('hidden');
-            
-            document.getElementById('tab-' + tabId).classList.remove('hidden');
-            if(tabId === 'api') loadTokenTable();
-            if(tabId === 'tasks') loadJobs();
+
+            if (tabId === 'history') loadHistory();
+            if (tabId === 'gallery') loadGallery();
         }
 
-        function renderChat() {
-            const box = document.getElementById('chatHistoryBox');
-            if (chatHistory.length === 0) {
-                box.classList.add('hidden');
-                return;
+        function autoResize(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+        }
+
+        function fillExample(txt) {
+            const input = document.getElementById('main-input');
+            input.value = txt;
+            autoResize(input);
+            document.getElementById('welcome-card').classList.add('opacity-50');
+        }
+
+        function handleFiles(files) {
+            for (let f of files) {
+                if (!selectedFiles.find(sf => sf.name === f.name && sf.size === f.size)) {
+                    selectedFiles.push(f);
+                }
             }
-            box.classList.remove('hidden');
-            box.innerHTML = chatHistory.map(msg => `
-                <div class="flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}">
-                    <span class="text-[10px] text-slate-500 uppercase mb-1 font-bold">${msg.role}</span>
-                    <div class="p-3 rounded-2xl ${msg.role === 'user' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-200'} max-w-[85%] whitespace-pre-wrap">${msg.content}</div>
+            renderFilePreviews();
+        }
+
+        function removeFile(i) {
+            selectedFiles.splice(i, 1);
+            renderFilePreviews();
+        }
+
+        function renderFilePreviews() {
+            const container = document.getElementById('file-previews');
+            container.innerHTML = selectedFiles.map((f, i) => `
+                <div class="relative group bg-emerald-500/10 rounded-xl p-2 pr-8 border border-emerald-500/20 flex items-center space-x-2 shrink-0 animate-slide-up">
+                    <i class="fas ${getFileIcon(f.type)} text-emerald-500 text-sm"></i>
+                    <div class="min-w-0">
+                        <p class="text-[9px] font-bold truncate max-w-[100px]">${f.name}</p>
+                    </div>
+                    <button onclick="removeFile(${i})" class="absolute right-1 text-slate-500 hover:text-red-400 transition">
+                        <i class="fas fa-times text-[10px]"></i>
+                    </button>
                 </div>
             `).join('');
-            box.scrollTop = box.scrollHeight;
         }
 
-        function clearChat() {
-            chatHistory = [];
-            renderChat();
+        function getFileIcon(type) {
+            if (type.startsWith('image/')) return 'fa-image';
+            if (type.startsWith('video/')) return 'fa-video';
+            if (type.startsWith('audio/')) return 'fa-waveform-lines';
+            return 'fa-file-lines';
         }
 
-        async function runLLM() {
-            const promptInput = document.getElementById('llmPrompt');
-            const prompt = promptInput.value;
-            const sys_prompt = document.getElementById('sysPrompt').value;
-            if(!prompt) return;
+        async function requestPlan() {
+            const instruction = document.getElementById('main-input').value.trim();
+            if (!instruction && selectedFiles.length === 0) return;
 
-            chatHistory.push({role: 'user', content: prompt});
-            promptInput.value = '';
-            renderChat();
-            
-            document.getElementById('btnLlm').disabled = true;
-            document.getElementById('btnLlm').innerHTML = '<i class="fas fa-spinner fa-spin"></i><span> Thinking...</span>';
-
-            try {
-                const res = await fetch('/api/llm/chat', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({prompt: prompt, system_prompt: sys_prompt, history: chatHistory.slice(0, -1)})
-                });
-                const data = await res.json();
-                if(data.job_id) {
-                    showTab('tasks');
-                    pollJob(data.job_id);
-                }
-            } catch(e) { 
-                alert("Request failed: " + e.message); 
-            }
-            
-            document.getElementById('btnLlm').disabled = false;
-            document.getElementById('btnLlm').innerHTML = '<span>Send Prompt</span><i class="fas fa-paper-plane text-sm"></i>';
-        }
-
-        async function runTask(type) {
-            let formData = new FormData();
-            let endpoint = '';
-            
-            if (type === 'vlm') {
-                const file = document.getElementById('vlmImage').files[0];
-                if(!file) return alert("Select an image");
-                formData.append('image', file);
-                formData.append('prompt', document.getElementById('vlmPrompt').value || "Describe this.");
-                endpoint = '/api/vlm/analyze';
-            } else if (type === 'stt') {
-                const file = document.getElementById('sttAudio').files[0];
-                if(!file) return alert("Select audio");
-                formData.append('audio', file);
-                endpoint = '/api/audio/stt';
-            } else if (type === 'ppt') {
-                const topic = document.getElementById('pptTopic').value;
-                if(!topic) return alert("Enter topic");
-                formData.append('topic', topic);
-                endpoint = '/api/ppt/generate';
-            }
-
-            const btn = document.getElementById('btn' + type.charAt(0).toUpperCase() + type.slice(1));
-            const oldHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span> Starting...</span>';
+            const btn = document.getElementById('send-btn');
+            const originalHtml = btn.innerHTML;
             btn.disabled = true;
-
-            try {
-                const res = await fetch(endpoint, { method: 'POST', body: formData });
-                const data = await res.json();
-                if (data.job_id) {
-                    showTab('tasks');
-                    pollJob(data.job_id);
-                }
-            } catch(e) { alert("Task failed: " + e.message); }
-
-            btn.innerHTML = oldHtml;
-            btn.disabled = false;
-        }
-
-        function handleMultimodalFileSelection() {
-            const input = document.getElementById('multimodalFiles');
-            const incoming = Array.from(input.files || []);
-            const seen = new Set(selectedMultimodalFiles.map(file => `${file.name}:${file.size}:${file.lastModified}`));
-            incoming.forEach(file => {
-                const key = `${file.name}:${file.size}:${file.lastModified}`;
-                if (!seen.has(key)) {
-                    selectedMultimodalFiles.push(file);
-                    seen.add(key);
-                }
-            });
-            syncMultimodalFileInput();
-            updateMultimodalFileLabel();
-        }
-
-        function syncMultimodalFileInput() {
-            const input = document.getElementById('multimodalFiles');
-            const dataTransfer = new DataTransfer();
-            selectedMultimodalFiles.forEach(file => dataTransfer.items.add(file));
-            input.files = dataTransfer.files;
-        }
-
-        function clearMultimodalFiles() {
-            selectedMultimodalFiles = [];
-            syncMultimodalFileInput();
-            updateMultimodalFileLabel();
-        }
-
-        function updateMultimodalFileLabel() {
-            const label = document.getElementById('multimodalFileLabel');
-            if (!selectedMultimodalFiles.length) {
-                label.textContent = 'Attach images, audio, video, or documents';
-                return;
-            }
-            label.textContent = `${selectedMultimodalFiles.length} files: ${selectedMultimodalFiles.map(file => file.name).join(', ')}`;
-        }
-
-        async function loadElevenLabsVoices() {
-            const select = document.getElementById('multimodalVoice');
-            const previousValue = select.value;
-            select.innerHTML = '<option value="airYK6ydeWdrJg6gyZA3">Default: airYK6ydeWdrJg6gyZA3</option>';
-            try {
-                const res = await fetch('/api/elevenlabs/voices');
-                const data = await res.json();
-                const voices = data.voices || [];
-                if (data.default_voice_id && data.default_voice_id !== 'airYK6ydeWdrJg6gyZA3') {
-                    select.innerHTML = `<option value="${escapeHtml(data.default_voice_id)}">Default: ${escapeHtml(data.default_voice_id)}</option>`;
-                }
-                voices.forEach(voice => {
-                    if (!voice.voice_id) return;
-                    const option = document.createElement('option');
-                    option.value = voice.voice_id;
-                    option.textContent = `${voice.name || 'Unnamed voice'} · ${voice.voice_id}`;
-                    select.appendChild(option);
-                });
-                if ([...select.options].some(option => option.value === previousValue)) {
-                    select.value = previousValue;
-                }
-            } catch(e) {
-                alert('Could not load ElevenLabs voices. Using default voice id.');
-            }
-        }
-
-        async function runMultimodal() {
-            const instruction = document.getElementById('multimodalInstruction').value.trim();
-            if (!instruction) return alert('Enter a multimodal instruction');
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
 
             const formData = new FormData();
             formData.append('instruction', instruction);
-            formData.append('quality', document.getElementById('multimodalQuality').value);
-            formData.append('preferred_voice_provider', document.getElementById('multimodalVoiceProvider').value);
-            formData.append('preferred_voice', document.getElementById('multimodalVoice').value || 'airYK6ydeWdrJg6gyZA3');
+            formData.append('dry_run', 'true');
+            formData.append('quality', document.getElementById('quality-selector').value);
+            formData.append('preferred_voice_provider', document.getElementById('voice-provider').value);
+            selectedFiles.forEach(f => formData.append('files', f));
 
-            const files = document.getElementById('multimodalFiles').files;
-            for (const file of files) {
-                formData.append('files', file);
+            const token = localStorage.getItem('api_token');
+            const headers = {};
+            if (token && token !== 'AI_HUB_INTERNAL') {
+                headers['Authorization'] = "Bearer " + token;
             }
-
-            const btn = document.getElementById('btnMultimodal');
-            const oldHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span> Planning...</span>';
-            btn.disabled = true;
 
             try {
-                const res = await fetch('/api/multimodal/execute', { method: 'POST', body: formData });
+                const res = await fetch('/api/multimodal/execute', {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+                if (!res.ok) throw new Error(await res.text());
                 const data = await res.json();
-                if (data.job_id) {
-                    showTab('tasks');
-                    pollJob(data.job_id);
+                if (data.dry_run) {
+                    currentPlanData = data;
+                    showPlanModal(data.plan);
                 } else {
-                    alert('Multimodal task failed to start: ' + JSON.stringify(data));
+                    alert('Planning failed');
                 }
-            } catch(e) {
-                alert('Multimodal request failed: ' + e.message);
+            } catch (e) {
+                alert('Planning error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
             }
-
-            btn.innerHTML = oldHtml;
-            btn.disabled = false;
         }
 
-        function escapeHtml(value) {
-            return String(value ?? '')
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#039;');
-        }
-
-        function renderResultValue(value) {
-            if (typeof value === 'string' && value.startsWith('/api/results/')) {
-                const lower = value.toLowerCase();
-                if (lower.match(/\.(png|jpg|jpeg|webp|gif)$/)) {
-                    return `<a href="${value}" target="_blank" class="text-emerald-400 font-bold underline">Open image</a><img src="${value}" class="mt-3 rounded-xl max-h-48 w-full object-contain bg-slate-950">`;
-                }
-                if (lower.match(/\.(wav|mp3|ogg|m4a)$/)) {
-                    return `<audio controls class="w-full mt-2"><source src="${value}"></audio><a href="${value}" download class="text-emerald-400 font-bold underline mt-2 block">Download audio</a>`;
-                }
-                if (lower.match(/\.(mp4|webm|mov)$/)) {
-                    return `<video controls class="w-full mt-2 rounded-xl max-h-56"><source src="${value}"></video><a href="${value}" download class="text-emerald-400 font-bold underline mt-2 block">Download video</a>`;
-                }
-                return `<a href="${value}" download class="text-emerald-400 font-bold underline">Download result</a>`;
-            }
-            if (typeof value === 'object') {
-                return `<pre class="whitespace-pre-wrap">${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
-            }
-            return `<div class="whitespace-pre-wrap">${escapeHtml(value)}</div>`;
-        }
-
-        function renderMultimodalResult(result) {
-            const final = result?.final || {};
-            const finalValue = final.url || final.value || '';
-            const steps = result?.steps || [];
-            const stepRows = steps.map(step => `
-                <div class="flex items-center justify-between gap-3 py-1 border-b border-white/5 last:border-b-0">
-                    <span class="text-slate-400">${escapeHtml(step.id)} · ${escapeHtml(step.action)}</span>
-                    <span class="${step.status === 'completed' ? 'text-emerald-400' : 'text-red-400'} font-bold">${escapeHtml(step.status)}</span>
+        function showPlanModal(plan) {
+            const container = document.getElementById('plan-steps');
+            container.innerHTML = plan.steps.map((step, i) => `
+                <div class="flex items-start space-x-4 p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-emerald-500 shrink-0">${i+1}</div>
+                    <div class="flex-grow min-w-0">
+                        <p class="text-sm font-bold text-white truncate">${step.action.toUpperCase().replace('.', ' ')}</p>
+                        <p class="text-[10px] text-slate-500 mt-1 truncate">${JSON.stringify(step.inputs)}</p>
+                    </div>
                 </div>
             `).join('');
-            return `
-                <div class="mt-2 bg-slate-900 p-3 rounded-xl text-xs space-y-3">
-                    <div>${renderResultValue(finalValue)}</div>
-                    <details class="mt-3">
-                        <summary class="cursor-pointer text-blue-300 font-bold">Multimodal Plan</summary>
-                        <div class="mt-2 text-slate-300">${stepRows || '<span class="text-slate-500">No steps</span>'}</div>
-                        <pre class="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-slate-500">${escapeHtml(JSON.stringify(result?.plan || {}, null, 2))}</pre>
-                    </details>
-                </div>
-            `;
+            document.getElementById('plan-modal').classList.remove('hidden');
         }
 
-        async function loadJobs() {
-            const res = await fetch('/api/jobs');
-            const jobs = await res.json();
-            const container = document.getElementById('jobsContainer');
-            container.innerHTML = '';
-            
-            // Sort by created_at descending
-            const jobList = Object.values(jobs).sort((a,b) => b.created_at - a.created_at);
+        async function executePlan() {
+            const btn = document.getElementById('confirm-execute-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Starting...';
 
-            if(jobList.length === 0) {
-                container.innerHTML = '<p class="text-slate-500 col-span-full text-center py-10">No tasks running or completed yet.</p>';
-                return;
+            const formData = new FormData();
+            formData.append('instruction', currentPlanData.plan.goal);
+            formData.append('dry_run', 'false');
+            formData.append('quality', currentPlanData.plan.quality);
+            formData.append('preferred_voice_provider', document.getElementById('voice-provider').value);
+            selectedFiles.forEach(f => formData.append('files', f));
+
+            const token = localStorage.getItem('api_token');
+            const headers = {};
+            if (token && token !== 'AI_HUB_INTERNAL') {
+                headers['Authorization'] = "Bearer " + token;
             }
 
-            jobList.forEach(job => {
-                let statusColor = 'text-amber-500';
-                let statusIcon = '<i class="fas fa-circle-notch fa-spin"></i>';
-                if(job.status === 'completed') { statusColor = 'text-emerald-500'; statusIcon = '<i class="fas fa-check-circle"></i>'; }
-                if(job.status === 'failed') { statusColor = 'text-red-500'; statusIcon = '<i class="fas fa-times-circle"></i>'; }
-
-                let resultHtml = '';
-                if (job.status === 'completed') {
-                    if(job.type === 'ppt') {
-                        resultHtml = `<a href="${job.result}" download class="text-emerald-400 font-bold underline mt-2 block"><i class="fas fa-download"></i> Download PPTX</a>`;
-                    } else if (job.type === 'llm') {
-                        resultHtml = `<div class="mt-2 bg-slate-900 p-3 rounded-xl max-h-32 overflow-y-auto text-xs whitespace-pre-wrap">${job.result}</div>
-                                      <button onclick="addChatHistory('${job.id}')" class="mt-2 text-xs bg-blue-600 px-2 py-1 rounded text-white">Add to Chat</button>`;
-                    } else if (job.type === 'multimodal') {
-                        resultHtml = renderMultimodalResult(job.result);
-                    } else {
-                        resultHtml = `<div class="mt-2 bg-slate-900 p-3 rounded-xl max-h-32 overflow-y-auto text-xs whitespace-pre-wrap">${job.result}</div>`;
-                    }
-                } else if (job.status === 'failed') {
-                    resultHtml = `<div class="mt-2 bg-red-900/30 text-red-400 p-3 rounded-xl text-xs whitespace-pre-wrap">${job.error}</div>`;
+            try {
+                const res = await fetch('/api/multimodal/execute', {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.job_id) {
+                    closeModal('plan-modal');
+                    switchTab('history');
+                    // Reset
+                    document.getElementById('main-input').value = '';
+                    selectedFiles = [];
+                    renderFilePreviews();
+                } else if (data.detail) {
+                    alert('Error: ' + data.detail);
                 }
-
-                const inputSummary = JSON.stringify(job.input).substring(0, 50) + "...";
-
-                container.innerHTML += `
-                    <div class="card-neo p-5 rounded-2xl relative" id="job-${job.id}">
-                        <button onclick="deleteJob('${job.id}')" class="absolute top-4 right-4 text-slate-500 hover:text-red-400"><i class="fas fa-trash"></i></button>
-                        <div class="flex items-center space-x-2 mb-2">
-                            <span class="px-2 py-1 bg-slate-800 rounded text-[10px] font-bold uppercase">${job.type}</span>
-                            <span class="${statusColor} text-sm font-bold flex items-center space-x-1">${statusIcon} <span>${job.status}</span></span>
-                        </div>
-                        <p class="text-xs text-slate-400 mb-2 truncate">Input: ${inputSummary}</p>
-                        <div id="job-result-${job.id}">${resultHtml}</div>
-                    </div>
-                `;
-
-                if (job.status === 'pending' || job.status === 'processing') {
-                    pollJob(job.id);
-                }
-            });
+            } catch (e) { alert('Execution failed: ' + e.message); }
+            btn.disabled = false;
+            btn.innerHTML = 'Approve & Run';
         }
 
-        async function pollJob(jobId) {
-            if(pollingJobs.has(jobId)) return;
-            pollingJobs.add(jobId);
-            
-            const interval = setInterval(async () => {
-                const res = await fetch(`/api/jobs/${jobId}`);
-                if (!res.ok) {
-                    clearInterval(interval);
-                    pollingJobs.delete(jobId);
-                    return;
-                }
-                const job = await res.json();
-                if (job.status === 'completed' || job.status === 'failed') {
-                    clearInterval(interval);
-                    pollingJobs.delete(jobId);
-                    loadJobs(); // Refresh UI fully when a job completes
-                }
-            }, 3000);
+        async function loadHistory() {
+            try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
+
+                const res = await fetch('/api/jobs', {headers: headers});
+                const jobs = await res.json();
+                const list = document.getElementById('history-list');
+                list.innerHTML = Object.values(jobs).sort((a,b) => b.created_at - a.created_at).map(job => `
+                    <div class="card p-5 space-y-3 relative group animate-slide-up">
+                        <div class="flex justify-between items-start">
+                            <span class="px-2 py-0.5 rounded bg-white/5 text-[9px] font-black uppercase text-slate-500">${job.type}</span>
+                            <span class="text-[10px] font-bold ${getStatusColor(job.status)} uppercase">${job.status}</span>
+                        </div>
+                        <p class="text-xs font-medium line-clamp-2">${job.input.instruction || job.id}</p>
+                        ${renderJobResult(job)}
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('history-list').innerHTML = '<p class="text-red-400">Failed to load history</p>';
+            }
+        }
+
+        function getStatusColor(s) {
+            if (s === 'completed') return 'text-emerald-400';
+            if (s === 'failed') return 'text-red-400';
+            return 'text-blue-400 animate-pulse';
+        }
+
+        function renderJobResult(job) {
+            if (job.status !== 'completed' || !job.result) return '';
+            const res = job.result;
+            const finalVal = res.final?.url || res.final?.value || res;
+            if (typeof finalVal === 'string' && finalVal.startsWith('/api/results/')) {
+                if (finalVal.match(/\.(png|jpg|jpeg|webp)$/i)) return `<img src="${finalVal}" class="rounded-lg max-h-32 w-full object-cover">`;
+                if (finalVal.match(/\.(mp4|webm)$/i)) return `<div class="bg-black/20 rounded-lg p-2 flex items-center justify-center space-x-2 text-[10px] font-bold text-emerald-400"><i class="fas fa-video"></i> <span>Video Ready</span></div>`;
+            }
+            return '<div class="text-[10px] text-slate-500">Result available</div>';
         }
 
         async function deleteJob(jobId) {
-            if(confirm("Delete this task record?")) {
-                await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
-                loadJobs();
-            }
+            if (!confirm('Are you sure you want to delete this item?')) return;
+            try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
+                
+                await fetch('/api/jobs/' + jobId, { method: 'DELETE', headers: headers });
+                loadGallery();
+                loadHistory();
+            } catch (e) { alert('Delete failed'); }
         }
 
-        async function addChatHistory(jobId) {
-            const res = await fetch(`/api/jobs/${jobId}`);
-            const job = await res.json();
-            if(job.result) {
-                chatHistory.push({role: 'assistant', content: job.result});
-                alert("Added to Chat Studio!");
-                showTab('studio');
-                renderChat();
-            }
+        async function uploadToGallery(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
+                
+                const res = await fetch('/api/gallery/upload', {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+                if (res.ok) loadGallery();
+                else alert('Upload failed');
+            } catch (e) { alert('Upload error: ' + e.message); }
         }
 
-        // Token management same as before
-        async function loadTokenTable() {
-            const res = await fetch('/api/tokens/list');
-            const tokens = await res.json();
-            const body = document.getElementById('tokenTableBody');
-            body.innerHTML = '';
-            for(const [token, label] of Object.entries(tokens)) {
-                body.innerHTML += `
-                    <tr class="hover:bg-white/[0.02] transition">
-                        <td class="px-8 py-5 font-bold text-emerald-500">${label}</td>
-                        <td class="px-8 py-5 font-mono text-slate-500 text-xs">${token.substring(0, 15)}...</td>
-                        <td class="px-8 py-5 text-right"><span class="text-[10px] text-slate-600 bg-white/5 px-2 py-1 rounded">Active</span></td>
-                    </tr>
-                `;
-            }
-        }
+        async function loadGallery() {
+            const list = document.getElementById('gallery-grid');
+            list.innerHTML = '<p class="text-slate-500 col-span-full text-center">Loading media...</p>';
+            try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
 
-        async function createToken() {
-            const label = document.getElementById('tokenLabel').value;
-            if(!label) return;
-            const res = await fetch('/api/tokens/create', { method: 'POST', body: new URLSearchParams({label: label}) });
-            const data = await res.json();
-            document.getElementById('tokenModal').classList.add('hidden');
-            document.getElementById('newTokenValue').innerText = data.token;
-            document.getElementById('revealModal').classList.remove('hidden');
-        }
-
-        function copyToClipboard(id) {
-            const text = document.getElementById(id).innerText;
-            navigator.clipboard.writeText(text);
-            alert("Copied!");
-        }
-
-        // Profile Dropdown Functions
-        function toggleDropdown() {
-            document.getElementById("profileDropdown").classList.toggle("show");
-        }
-
-        window.onclick = function(event) {
-            if (!event.target.closest('.profile-dropdown')) {
-                var dropdowns = document.getElementsByClassName("dropdown-content");
-                for (var i = 0; i < dropdowns.length; i++) {
-                    var openDropdown = dropdowns[i];
-                    if (openDropdown.classList.contains('show')) {
-                        openDropdown.classList.remove('show');
-                    }
+                const res = await fetch('/api/jobs', {headers: headers});
+                const jobs = await res.json();
+                const media = Object.values(jobs).filter(j => j.status === 'completed' && j.result).map(j => {
+                    const r = j.result;
+                    const url = r.final?.url || (typeof r === 'string' && r.startsWith('/api/results/') ? r : null);
+                    return { url, goal: j.input.instruction || j.id, id: j.id };
+                }).filter(m => m.url && m.url.match(/\.(png|jpg|jpeg|webp|mp4|webm)$/i));
+                
+                if (!media.length) {
+                    list.innerHTML = '<p class="text-slate-500 col-span-full text-center py-10">No media found.</p>';
+                    return;
                 }
-            }
+
+                list.innerHTML = media.map(m => {
+                    const isVid = m.url.match(/\.(mp4|webm)$/i);
+                    return `
+                        <div class="card overflow-hidden group aspect-square bg-slate-900 shadow-xl relative">
+                            ${isVid ? `<video src="${m.url}" class="w-full h-full object-cover"></video>` : `<img src="${m.url}" class="w-full h-full object-cover">`}
+                            <a href="${m.url}" target="_blank" class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                <i class="fas ${isVid ? 'fa-play' : 'fa-expand'} text-white text-xl"></i>
+                            </a>
+                            <button onclick="deleteJob('${m.id}')" class="absolute top-2 right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition flex items-center justify-center shadow-lg">
+                                <i class="fas fa-trash text-xs"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) { list.innerHTML = '<p class="text-red-400 col-span-full text-center">Failed to load gallery</p>'; }
         }
 
-        function showUserInfo() {
-            const name = "{{ user_name }}";
-            const email = "{{ user_email }}";
-            const photo = "{{ user_image }}";
-            alert(`User Information:\nName: ${name}\nEmail: ${email}\nPhoto URL: ${photo}`);
-        }
-
-        async function unregisterUser() {
-            if (confirm("Are you sure you want to unregister? This will delete your account data and sign you out.")) {
-                try {
-                    const res = await fetch('/api/user/unregister', { method: 'POST' });
-                    const data = await res.json();
-                    if (data.redirect) {
-                        window.location.href = data.redirect;
-                    }
-                } catch (e) {
-                    alert("Unregistration failed: " + e.message);
+        async function fetchQuota() {
+            try {
+                const res = await fetch('/api/user/quota?email=' + encodeURIComponent(currentUserEmail));
+                if (!res.ok) return;
+                const quotas = await res.json();
+                if (quotas.credits) {
+                    const pct = Math.round((quotas.credits.remaining / quotas.credits.limit) * 100);
+                    document.getElementById('quota-val').innerText = pct + '%';
+                    document.getElementById('quota-bar').style.width = pct + '%';
                 }
-            }
+            } catch (e) {}
         }
-    
-async function submitMediaTask(type) {
-    const formData = new FormData();
-    let endpoint = "";
-    
-    try {
-        if (type === 'image') {
-            formData.append('prompt', document.getElementById('imgPrompt').value);
-            endpoint = "/api/media/image";
-        } else if (type === 'music') {
-            formData.append('prompt', document.getElementById('musicPrompt').value);
-            formData.append('duration', document.getElementById('musicDur').value);
-            endpoint = "/api/media/music";
-        } else if (type === 'tts') {
-            formData.append('text', document.getElementById('ttsText').value);
-            formData.append('ref_text', document.getElementById('ttsRefText').value);
-            const refFile = document.getElementById('ttsRefAudio').files[0];
-            if (refFile) formData.append('ref_audio', refFile);
-            endpoint = "/api/media/tts";
-        } else if (type === 'video_gen') {
-            const baseImg = document.getElementById('vidGenBaseImg').files[0];
-            if(!baseImg) { alert('Base image required for video gen'); return; }
-            formData.append('base_image', baseImg);
-            const purpose = document.getElementById('vidGenType').value;
-            const userP = document.getElementById('vidGenPrompt').value;
-            formData.append('prompt', "[" + purpose + "] " + userP);
-            formData.append('duration', document.getElementById('vidGenDur').value);
-            endpoint = "/api/media/video/gen";
-        } else if (type === 'video_edit' || type === 'video_shorts' || type === 'video_analyze') {
-            const vidFile = document.getElementById('vidEditTarget').files[0];
-            if(!vidFile) { alert('Target video required'); return; }
-            formData.append('video', vidFile);
-            const audFile = document.getElementById('vidEditAudio').files[0];
-            if(audFile) formData.append('audio', audFile);
-            formData.append('prompt', document.getElementById('vidEditPrompt').value);
-            
-            if (type === 'video_edit') endpoint = "/api/media/video/edit";
-            if (type === 'video_shorts') endpoint = "/api/media/video/shorts";
-            if (type === 'video_analyze') endpoint = "/api/media/video/analyze";
+
+        async function generateApiKey() {
+            const label = prompt("Enter a label for this API key:");
+            if (!label) return;
+            const formData = new FormData();
+            formData.append('label', label);
+            try {
+                const res = await fetch('/api/tokens/create', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.token) {
+                    prompt("Your new API Key. Copy it now, it won't be shown again:", data.token);
+                    // Optionally set it as default in this browser
+                    if (confirm("Set this as your active token for this browser?")) {
+                        localStorage.setItem('api_token', data.token);
+                        alert("Token set!");
+                    }
+                } else {
+                    alert("Failed to generate token.");
+                }
+            } catch (e) { alert("Error: " + e.message); }
         }
-        
-        addMessage("[Task Started] " + type.toUpperCase(), 'user');
-        
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Authorization': "Bearer " + localStorage.getItem('api_token') },
-            body: formData
+
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        // --- Admin Check ---
+        if (currentUserEmail === "yeonwoo.kim03@gmail.com") {
+            document.getElementById('admin-section').classList.remove('hidden');
+        }
+
+        // --- Global Token Init ---
+        if (!localStorage.getItem('api_token')) {
+            localStorage.setItem('api_token', 'AI_HUB_INTERNAL');
+        }
+
+        // --- Init ---
+        fetchQuota();
+        setInterval(fetchQuota, 30000);
+
+        // --- DnD ---
+        document.body.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+        document.body.addEventListener('drop', e => {
+            e.preventDefault(); e.stopPropagation();
+            if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
         });
-        
-        const data = await response.json();
-        if (data.job_id) {
-            addMessage("Task queued. Job ID: " + data.job_id + ". Checking Tasks tab...", 'bot');
-            startPolling(data.job_id);
-            showTab('tasks');
-        } else {
-            addMessage('Error: ' + JSON.stringify(data), 'bot');
-        }
-    } catch (e) {
-        console.error(e);
-        addMessage('Submission failed: ' + e, 'bot');
-    }
-}
-
-</script>
+    </script>
 </body>
 </html>

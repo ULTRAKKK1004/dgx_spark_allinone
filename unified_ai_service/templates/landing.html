@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Hub - Next Gen Multimodal Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background: #020617; color: #f8fafc; }
+        .hero-gradient {
+            background: radial-gradient(circle at 50% -20%, #1e40af22 0%, #020617 70%);
+        }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-20px); } 100% { transform: translateY(0px); } }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+    </style>
+</head>
+<body class="antialiased hero-gradient min-h-screen flex flex-col">
+    <!-- Nav -->
+    <nav class="h-20 flex items-center justify-between px-8 lg:px-16 border-b border-white/5">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/40">
+                <i class="fas fa-brain text-white text-xl"></i>
+            </div>
+            <span class="text-xl font-black tracking-tighter">AI HUB</span>
+        </div>
+        <div id="nav-auth" class="flex items-center space-x-4">
+            <!-- Injected via JS -->
+        </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="flex-grow flex flex-col items-center justify-center px-6 py-20 text-center space-y-12">
+        <div class="space-y-6 max-w-4xl">
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest mb-4">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Phase C Live Now</span>
+            </div>
+            <h1 class="text-5xl lg:text-7xl font-extrabold leading-tight tracking-tighter">
+                Everything You Imagine,<br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Powered by AI Hub.</span>
+            </h1>
+            <p class="text-slate-400 text-lg lg:text-xl max-w-2xl mx-auto">
+                이미지 생성부터 고품질 강의 영상 제작까지.<br>자연어 한 줄로 멀티모달 AI의 힘을 경험하세요.
+            </p>
+        </div>
+
+        <!-- CTA -->
+        <div id="cta-buttons" class="flex flex-col sm:flex-row gap-4 w-full justify-center pt-8">
+            <!-- Injected via JS -->
+        </div>
+
+        <!-- Feature Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl w-full pt-20">
+            <div class="card p-8 glass rounded-3xl text-left space-y-4">
+                <i class="fas fa-image text-emerald-400 text-2xl"></i>
+                <h3 class="text-xl font-bold">Image Gen</h3>
+                <p class="text-sm text-slate-500">Flux & Janus-Pro 기반 고품질 이미지 생성 및 분석.</p>
+            </div>
+            <div class="card p-8 glass rounded-3xl text-left space-y-4">
+                <i class="fas fa-video text-blue-400 text-2xl"></i>
+                <h3 class="text-xl font-bold">AI Lecture</h3>
+                <p class="text-sm text-slate-500">사진과 대본만으로 완성되는 립싱크 강의 영상 서비스.</p>
+            </div>
+            <div class="card p-8 glass rounded-3xl text-left space-y-4">
+                <i class="fas fa-microchip text-purple-400 text-2xl"></i>
+                <h3 class="text-xl font-bold">Unified Router</h3>
+                <p class="text-sm text-slate-500">복잡한 워크플로우를 AI가 스스로 계획하고 실행.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="p-8 text-center text-slate-600 text-xs border-t border-white/5">
+        &copy; 2026 AI HUB. All rights reserved.
+    </footer>
+
+    <script>
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/user/info');
+                const user = await res.json();
+                
+                const navAuth = document.getElementById('nav-auth');
+                const ctaBtn = document.getElementById('cta-buttons');
+                
+                if (user.email && user.email !== 'Guest') {
+                    // Logged in
+                    const userImg = user.picture || 'https://ui-avatars.com/api/?name=' + user.name;
+                    navAuth.innerHTML = `
+                        <a href="/studio" class="flex items-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl transition">
+                            <span class="text-sm font-bold text-white">Studio</span>
+                        </a>
+                        <img src="${userImg}" class="w-8 h-8 rounded-full border border-white/20">
+                        <a href="/logout" class="text-slate-500 hover:text-white ml-2"><i class="fas fa-sign-out-alt"></i></a>
+                    `;
+                    ctaBtn.innerHTML = `
+                        <a href="/studio" class="px-10 py-5 bg-white text-slate-950 rounded-2xl font-black text-lg hover:bg-slate-200 transition shadow-2xl">
+                            Go to Studio
+                        </a>
+                    `;
+                } else {
+                    // Not logged in
+                    navAuth.innerHTML = `
+                        <a href="/oauth2/start?rd=https://tor-ai.com/studio" class="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold transition shadow-lg">
+                            Sign In
+                        </a>
+                    `;
+                    ctaBtn.innerHTML = `
+                        <a href="/oauth2/start?rd=https://tor-ai.com/studio" class="px-10 py-5 bg-white text-slate-950 rounded-2xl font-black text-lg hover:bg-slate-200 transition shadow-2xl">
+                            Start Free
+                        </a>
+                        <div class="px-10 py-5 glass rounded-2xl font-bold text-lg text-slate-300">
+                            Learn More
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                console.error("Auth check failed", e);
+            }
+        }
+        checkAuth();
+    </script>
+</body>
+</html>

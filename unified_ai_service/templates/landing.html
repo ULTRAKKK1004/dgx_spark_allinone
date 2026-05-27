@@ -27,6 +27,7 @@
             <span class="text-xl font-black tracking-tighter">AI HUB</span>
         </div>
         <div id="nav-auth" class="flex items-center space-x-4">
+            <a href="https://blog.tor-ai.com" target="_blank" class="hidden md:block text-sm font-bold text-slate-400 hover:text-white transition">Blog</a>
             <!-- Injected via JS -->
         </div>
     </nav>
@@ -100,10 +101,14 @@
                         <a href="/studio" class="px-10 py-5 bg-white text-slate-950 rounded-2xl font-black text-lg hover:bg-slate-200 transition shadow-2xl">
                             Go to Studio
                         </a>
+                        <a href="https://blog.tor-ai.com" target="_blank" class="px-10 py-5 glass rounded-2xl font-bold text-lg text-slate-300 hover:bg-white/5 transition">
+                            Visit AI Blog
+                        </a>
                     `;
                 } else {
                     // Not logged in
                     navAuth.innerHTML = `
+                        <a href="https://blog.tor-ai.com" target="_blank" class="hidden md:block text-sm font-bold text-slate-400 hover:text-white transition">Blog</a>
                         <a href="/oauth2/start?rd=https://tor-ai.com/studio" class="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold transition shadow-lg">
                             Sign In
                         </a>
@@ -112,9 +117,9 @@
                         <a href="/oauth2/start?rd=https://tor-ai.com/studio" class="px-10 py-5 bg-white text-slate-950 rounded-2xl font-black text-lg hover:bg-slate-200 transition shadow-2xl">
                             Start Free
                         </a>
-                        <div class="px-10 py-5 glass rounded-2xl font-bold text-lg text-slate-300">
-                            Learn More
-                        </div>
+                        <a href="https://blog.tor-ai.com" target="_blank" class="px-10 py-5 glass rounded-2xl font-bold text-lg text-slate-300 hover:bg-white/5 transition">
+                            Read AI Blog
+                        </a>
                     `;
                 }
             } catch (e) {

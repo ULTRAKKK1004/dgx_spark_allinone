@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Multimodal AI Studio</title>
+    <title>AI Hub - Multimodal Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -21,25 +21,70 @@
         .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
         .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1.5rem; transition: all 0.3s; position: relative; overflow: hidden; }
         
-        /* Layout */
-        .app-grid {
-            display: grid;
-            grid-template-columns: 280px 1fr;
+        /* New Single Column Layout */
+        .app-container {
+            display: flex;
+            flex-direction: column;
             height: 100dvh;
             width: 100vw;
         }
-        @media (max-width: 1024px) { 
-            .app-grid { grid-template-columns: 1fr; } 
-            .sidebar { display: none; } 
+        
+        /* Top Navigation Dropdown */
+        #nav-tray {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+        #nav-tray.open {
+            max-height: 500px;
+            padding-bottom: 2rem;
         }
         
-        .tab-content { display: none; height: 100%; overflow-y: auto; }
+        /* Content Area Optimization */
+        #workspace-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            position: relative;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            scroll-behavior: smooth;
+        }
+#chat-feed {
+    width: 100%;
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: 1rem;
+    padding-bottom: 140px; /* Slimmer padding */
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.header-slim { height: 3.5rem; }
+
+.max-w-full-content {
+    width: 100%;
+    max-width: 1800px;
+    margin: 0 auto;
+}
+
+        .tab-content { display: none; width: 100%; }
         .tab-content.active { display: block; }
         
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        /* Compact Input */
+        .input-bar-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            background: gradient-to-t from-slate-950 via-slate-950/80 to-transparent;
+            pointer-events: none;
+            z-index: 50;
+        }
         
         /* Animations */
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -47,203 +92,141 @@
     </style>
 </head>
 <body class="antialiased overflow-hidden">
-    <div class="app-grid">
-        <!-- Sidebar -->
-        <aside class="sidebar glass border-r flex flex-col p-6 space-y-8 overflow-y-auto">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/20">
-                    <i class="fas fa-brain text-white text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl font-bold tracking-tight">AI Hub</h1>
-                    <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Phase C Studio</p>
-                </div>
-            </div>
-
-            <nav class="flex-grow space-y-2">
-                <button onclick="switchTab('studio')" id="nav-studio" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl bg-emerald-500/10 text-emerald-400 font-bold transition">
-                    <i class="fas fa-wand-magic-sparkles"></i>
-                    <span>AI Studio</span>
+    <div class="app-container">
+        <!-- Top Header -->
+        <header class="h-12 flex items-center justify-between px-6 border-b border-white/5 glass z-[110] shrink-0">
+            <div class="flex items-center space-x-4">
+                <button onclick="toggleNavTray()" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 transition">
+                    <i class="fas fa-bars text-xl"></i>
                 </button>
-                <button onclick="switchTab('history')" id="nav-history" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 transition">
-                    <i class="fas fa-history"></i>
-                    <span>Task History</span>
-                </button>
-                <button onclick="switchTab('gallery')" id="nav-gallery" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 transition">
-                    <i class="fas fa-images"></i>
-                    <span>Gallery</span>
-                </button>
-
-                <!-- Admin Button (Condition in JS) -->
-                <div id="admin-section" class="hidden pt-4">
-                    <p class="text-[10px] text-slate-500 font-bold uppercase px-4 mb-2">Management</p>
-                    <a href="/admin" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-amber-400 hover:bg-amber-500/10 transition">
-                        <i class="fas fa-user-shield"></i>
-                        <span>Admin Console</span>
-                    </a>
-                </div>
-
-                <div class="pt-4">
-                    <p class="text-[10px] text-slate-500 font-bold uppercase px-4 mb-2">Settings</p>
-                    <button onclick="generateApiKey()" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 transition text-left">
-                        <i class="fas fa-key"></i>
-                        <span>Generate API Key</span>
-                    </button>
-                    <a href="/logout" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:text-red-400 hover:bg-white/5 transition lg:hidden">
-                        <i class="fas fa-sign-out-alt"></i>
-                        <span>Logout</span>
-                    </a>
-                </div>
-            </nav>
-
-            <div class="pt-6 border-t border-white/5">
-                <div class="bg-slate-900/50 rounded-2xl p-4 space-y-3">
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-slate-500 font-bold uppercase tracking-tighter">Usage Quota</span>
-                        <span class="text-emerald-500 font-bold" id="quota-val">...</span>
-                    </div>
-                    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                        <div id="quota-bar" class="bg-emerald-500 h-full" style="width: 0%"></div>
-                    </div>
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-brain text-emerald-500 text-2xl"></i>
+                    <span class="font-black tracking-tighter text-xl">AI HUB</span>
                 </div>
             </div>
             
-            <div class="flex items-center space-x-3 p-2">
-                <img src="{{ user_image }}" class="w-10 h-10 rounded-full border border-white/10" onerror="this.src='https://ui-avatars.com/api/?name={{ user_name }}'">
-                <div class="min-w-0">
-                    <p class="text-sm font-bold truncate">{{ user_name }}</p>
-                    <p class="text-[10px] text-slate-500 truncate">{{ user_email }}</p>
+            <div class="flex items-center space-x-4">
+                <div id="quota-info" class="hidden md:flex flex-col items-end mr-2">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase">Quota</span>
+                    <span id="quota-val-top" class="text-xs font-black text-emerald-500">...</span>
+                </div>
+                <img src="{{ user_image }}" class="w-9 h-9 rounded-full border border-emerald-500/20" onerror="this.src='https://ui-avatars.com/api/?name={{ user_name }}'">
+            </div>
+        </header>
+
+        <!-- Navigation Tray (Expands Downwards) -->
+        <div id="nav-tray" class="px-6">
+            <div class="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 pt-6">
+                <button onclick="switchTab('studio')" class="flex flex-col items-center p-4 rounded-2xl bg-white/5 hover:bg-emerald-500/10 border border-white/5 transition group">
+                    <i class="fas fa-wand-magic-sparkles text-2xl mb-2 text-slate-500 group-hover:text-emerald-400"></i>
+                    <span class="text-xs font-bold">Studio</span>
+                </button>
+                <button onclick="switchTab('history')" class="flex flex-col items-center p-4 rounded-2xl bg-white/5 hover:bg-emerald-500/10 border border-white/5 transition group">
+                    <i class="fas fa-history text-2xl mb-2 text-slate-500 group-hover:text-emerald-400"></i>
+                    <span class="text-xs font-bold">History</span>
+                </button>
+                <button onclick="switchTab('gallery')" class="flex flex-col items-center p-4 rounded-2xl bg-white/5 hover:bg-emerald-500/10 border border-white/5 transition group">
+                    <i class="fas fa-images text-2xl mb-2 text-slate-500 group-hover:text-emerald-400"></i>
+                    <span class="text-xs font-bold">Gallery</span>
+                </button>
+                <button onclick="generateApiKey()" class="flex flex-col items-center p-4 rounded-2xl bg-white/5 hover:bg-emerald-500/10 border border-white/5 transition group">
+                    <i class="fas fa-key text-2xl mb-2 text-slate-500 group-hover:text-emerald-400"></i>
+                    <span class="text-xs font-bold">API Key</span>
+                </button>
+            </div>
+            
+            <div class="max-w-4xl mx-auto flex justify-between items-center mt-6 pt-6 border-t border-white/5">
+                <div id="admin-link-container" class="hidden">
+                    <a href="/admin" class="px-4 py-2 bg-amber-500/10 text-amber-400 rounded-xl text-xs font-bold hover:bg-amber-500/20 transition">
+                        <i class="fas fa-user-shield mr-2"></i> Admin Console
+                    </a>
+                </div>
+                <a href="/logout" class="text-xs font-bold text-slate-500 hover:text-red-400 transition">
+                    <i class="fas fa-sign-out-alt mr-1"></i> Sign Out
+                </a>
+            </div>
+        </div>
+
+        <!-- Workspace Area -->
+        <div id="workspace-container">
+            <!-- Tab: Studio -->
+            <div id="tab-studio" class="tab-content active">
+                <div id="chat-feed">
+                    <div id="welcome-card" class="card p-8 text-center space-y-4 animate-slide-up max-w-xl mx-auto mt-10 border-emerald-500/10">
+                        <div class="w-16 h-16 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto border border-emerald-500/20">
+                            <i class="fas fa-sparkles text-emerald-400 text-2xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-black">AI Multimodal Studio</h3>
+                        <p class="text-slate-400 text-sm">One prompt for high-fidelity Image, Video, Music and Slides.</p>
+                    </div>
                 </div>
             </div>
-        </aside>
 
-        <!-- Main Content -->
-        <main class="flex flex-col relative overflow-hidden">
-            <!-- Mobile Header & Nav -->
-            <header class="h-16 flex lg:hidden items-center justify-between px-4 border-b border-white/5 shrink-0 glass z-50">
-                <div class="flex items-center space-x-2">
-                    <i class="fas fa-brain text-emerald-500"></i>
-                    <span class="font-bold">AI Hub</span>
-                </div>
-                <div class="flex space-x-4 text-slate-400">
-                    <button onclick="switchTab('studio')"><i class="fas fa-wand-magic-sparkles"></i></button>
-                    <button onclick="switchTab('history')"><i class="fas fa-history"></i></button>
-                    <button onclick="switchTab('gallery')"><i class="fas fa-images"></i></button>
-                </div>
-            </header>
-
-            <!-- Desktop Header -->
-            <header class="h-16 hidden lg:flex items-center justify-between px-8 border-b border-white/5 shrink-0">
-                <h2 id="view-title" class="text-lg font-bold">Multimodal AI Studio</h2>
-                <div class="flex items-center space-x-4">
-                    <a href="/logout" class="text-slate-500 hover:text-white transition"><i class="fas fa-sign-out-alt"></i></a>
-                </div>
-            </header>
-
-            <!-- Workspace Areas -->
-            <div class="flex-grow overflow-hidden relative">
-                <!-- Tab: Studio -->
-                <div id="tab-studio" class="tab-content active p-4 lg:p-8 space-y-8">
-                    <div id="chat-feed" class="max-w-4xl mx-auto space-y-6 pb-32">
-                        <!-- Welcome Card -->
-                        <div id="welcome-card" class="card p-8 text-center space-y-4">
-                            <div class="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto">
-                                <i class="fas fa-sparkles text-blue-400 text-2xl"></i>
-                            </div>
-                            <h3 class="text-2xl font-bold">What can I create for you today?</h3>
-                            <p class="text-slate-400 max-w-md mx-auto text-sm lg:text-base">이미지, 오디오, 대본 등을 업로드하고 자연어로 지시하세요.</p>
-                            <div class="flex flex-wrap justify-center gap-2 pt-4 text-[10px] lg:text-xs">
-                                <button onclick="fillExample('강아지 이미지를 시네마틱하게 만들어줘')" class="px-4 py-2 bg-slate-800 rounded-full hover:bg-slate-700 transition">이미지 생성</button>
-                                <button onclick="fillExample('이 오디오를 텍스트로 변환해줘')" class="px-4 py-2 bg-slate-800 rounded-full hover:bg-slate-700 transition">STT</button>
-                                <button onclick="fillExample('이 사진 속 강사가 대본대로 말하는 강의 영상을 만들어줘')" class="px-4 py-2 bg-slate-800 rounded-full hover:bg-slate-700 transition">AI 강의</button>
-                            </div>
-                        </div>
-                        <!-- Result cards will appear here -->
+            <!-- Tab: History -->
+            <div id="tab-history" class="tab-content p-6">
+                <div class="max-w-full-content space-y-6">
+                    <div class="flex justify-between items-center px-2">
+                        <h3 class="text-xl font-bold">Recent Tasks</h3>
+                        <button onclick="loadHistory()" class="text-xs font-bold text-emerald-400"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
                     </div>
+                    <div id="history-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4"></div>
                 </div>
+            </div>
 
-                <!-- Tab: History -->
-                <div id="tab-history" class="tab-content p-4 lg:p-8">
-                    <div class="max-w-5xl mx-auto space-y-6">
-                        <div class="flex justify-between items-center">
-                            <h3 class="text-xl font-bold">Task History</h3>
-                            <button onclick="loadHistory()" class="text-xs font-bold text-emerald-400 hover:underline"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
-                        </div>
-                        <div id="history-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- History items -->
-                        </div>
+            <!-- Tab: Gallery -->
+            <div id="tab-gallery" class="tab-content p-6">
+                <div class="max-w-full-content space-y-6">
+                    <div class="flex justify-between items-center px-2">
+                        <h3 class="text-xl font-bold">Media Library</h3>
+                        <label class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold cursor-pointer transition text-xs">
+                            <i class="fas fa-upload mr-1"></i> Upload
+                            <input type="file" class="hidden" accept="image/*,video/*" onchange="uploadToGallery(this.files[0])">
+                        </label>
                     </div>
-                </div>
-
-                <!-- Tab: Gallery -->
-                <div id="tab-gallery" class="tab-content p-4 lg:p-8">
-                    <div class="max-w-5xl mx-auto">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-xl font-bold">Media Gallery</h3>
-                            <label class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold cursor-pointer transition text-sm">
-                                <i class="fas fa-upload mr-1"></i> Upload
-                                <input type="file" class="hidden" accept="image/*,video/*" onchange="uploadToGallery(this.files[0])">
-                            </label>
-                        </div>
-                        <div id="gallery-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-20">
-                            <!-- Media items -->
-                        </div>
-                    </div>
+                    <div id="gallery-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 pb-20"></div>
                 </div>
             </div>
 
             <!-- Bottom Floating Input Bar -->
-            <div class="absolute bottom-0 left-0 right-0 p-4 lg:p-6 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent pointer-events-none">
-                <div class="max-w-4xl mx-auto pointer-events-auto">
-                    <!-- File Preview Area -->
-                    <div id="file-previews" class="flex flex-wrap gap-2 mb-3 empty:hidden bg-slate-900/80 p-3 rounded-2xl border border-white/5 overflow-x-auto max-h-24"></div>
+            <div class="input-bar-container">
+                <div class="max-w-full-content mx-auto pointer-events-auto px-4 lg:px-8">
+                    <div id="file-previews" class="flex flex-wrap gap-2 mb-3 empty:hidden bg-slate-900/90 p-3 rounded-2xl border border-white/5 overflow-x-auto shadow-2xl"></div>
                     
-                    <!-- Main Input Container -->
-                    <div class="glass rounded-[2rem] p-2 shadow-2xl flex flex-col space-y-1 border-emerald-500/10">
-                        <textarea id="main-input" rows="1" class="w-full bg-transparent px-6 py-4 text-sm lg:text-base outline-none resize-none placeholder-slate-500" placeholder="지침 입력 및 파일 드래그..." oninput="autoResize(this)"></textarea>
+                    <div class="glass rounded-[2rem] p-2 shadow-2xl flex flex-col space-y-1 border-emerald-500/20 ring-1 ring-white/5">
+                        <textarea id="main-input" rows="1" class="w-full bg-transparent px-6 py-4 text-sm lg:text-base outline-none resize-none placeholder-slate-500" placeholder="지시사항을 입력하세요..." oninput="autoResize(this)"></textarea>
                         
                         <div class="flex items-center justify-between px-4 pb-2">
-                            <div class="flex items-center space-x-1 lg:space-x-2">
-                                <!-- Multi-file trigger -->
+                            <div class="flex items-center space-x-2">
                                 <label class="p-2 text-slate-400 hover:text-emerald-400 transition cursor-pointer flex items-center space-x-1">
                                     <input type="file" id="file-input" multiple class="hidden" onchange="handleFiles(this.files)">
-                                    <i class="fas fa-paperclip text-lg lg:text-xl"></i>
-                                    <span class="hidden sm:inline text-[9px] font-bold uppercase tracking-wider">Attach</span>
+                                    <i class="fas fa-paperclip text-xl"></i>
                                 </label>
-                                
-                                <div class="h-4 w-px bg-white/5 mx-1 lg:mx-2"></div>
-                                
-                                <select id="voice-provider" class="bg-transparent text-[9px] font-bold text-slate-500 outline-none cursor-pointer hover:text-slate-300 transition uppercase max-w-[80px]">
+                                <div class="h-4 w-px bg-white/10 mx-1"></div>
+                                <select id="voice-provider" class="bg-transparent text-[10px] font-bold text-slate-500 outline-none cursor-pointer hover:text-slate-300 uppercase">
                                     <option value="elevenlabs">ElevenLabs</option>
                                     <option value="local_f5">Local F5</option>
                                 </select>
-                                <select id="quality-selector" class="bg-transparent text-[9px] font-bold text-slate-500 outline-none cursor-pointer hover:text-slate-300 transition uppercase">
+                                <select id="quality-selector" class="bg-transparent text-[10px] font-bold text-slate-500 outline-none cursor-pointer hover:text-slate-300 uppercase">
                                     <option value="standard">Standard</option>
                                     <option value="high">High</option>
                                     <option value="draft">Draft</option>
                                 </select>
                             </div>
-                            
-                            <button id="send-btn" onclick="requestPlan()" class="btn-primary w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-900/40">
+                            <button id="send-btn" onclick="requestPlan()" class="btn-primary w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-lg">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </main>
+        </div>
     </div>
 
     <!-- Plan Approval Modal -->
-    <div id="plan-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
-        <div class="glass max-w-2xl w-full rounded-3xl p-6 lg:p-8 space-y-6 shadow-2xl border-emerald-500/20 overflow-y-auto max-h-[90vh] animate-slide-up">
-            <div>
-                <h3 class="text-2xl font-bold mb-1">AI Task Plan</h3>
-                <p class="text-sm text-slate-400">Review execution steps.</p>
-            </div>
-            
+    <div id="plan-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+        <div class="glass max-w-2xl w-full rounded-3xl p-8 space-y-6 shadow-2xl border-emerald-500/20 overflow-y-auto max-h-[90vh]">
+            <h3 class="text-2xl font-black">AI Implementation Plan</h3>
             <div id="plan-steps" class="space-y-3"></div>
-            
             <div class="grid grid-cols-2 gap-4 pt-4">
                 <button onclick="closeModal('plan-modal')" class="py-4 bg-slate-800 rounded-2xl font-bold">Cancel</button>
                 <button id="confirm-execute-btn" onclick="executePlan()" class="py-4 btn-primary text-white rounded-2xl font-bold text-lg">Approve & Run</button>
@@ -256,34 +239,27 @@
         let currentPlanData = null;
         const currentUserEmail = "{{ user_email }}";
 
+        function toggleNavTray() {
+            const tray = document.getElementById('nav-tray');
+            tray.classList.toggle('open');
+        }
+
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById('tab-' + tabId).classList.add('active');
             
-            document.querySelectorAll('nav button').forEach(b => {
-                b.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'font-bold');
-                b.classList.add('text-slate-400');
-            });
-            const btn = document.getElementById('nav-' + tabId);
-            if (btn) {
-                btn.classList.add('bg-emerald-500/10', 'text-emerald-400', 'font-bold');
-                btn.classList.remove('text-slate-400');
-            }
-
+            // Highlight logic for tray buttons could be added here
+            
+            // Auto close tray
+            document.getElementById('nav-tray').classList.remove('open');
+            
             if (tabId === 'history') loadHistory();
             if (tabId === 'gallery') loadGallery();
         }
 
         function autoResize(el) {
             el.style.height = 'auto';
-            el.style.height = Math.min(el.scrollHeight, 150) + 'px';
-        }
-
-        function fillExample(txt) {
-            const input = document.getElementById('main-input');
-            input.value = txt;
-            autoResize(input);
-            document.getElementById('welcome-card').classList.add('opacity-50');
+            el.style.height = Math.min(el.scrollHeight, 120) + 'px';
         }
 
         function handleFiles(files) {
@@ -305,9 +281,7 @@
             container.innerHTML = selectedFiles.map((f, i) => `
                 <div class="relative group bg-emerald-500/10 rounded-xl p-2 pr-8 border border-emerald-500/20 flex items-center space-x-2 shrink-0 animate-slide-up">
                     <i class="fas ${getFileIcon(f.type)} text-emerald-500 text-sm"></i>
-                    <div class="min-w-0">
-                        <p class="text-[9px] font-bold truncate max-w-[100px]">${f.name}</p>
-                    </div>
+                    <span class="text-[10px] font-bold truncate max-w-[100px]">${f.name}</span>
                     <button onclick="removeFile(${i})" class="absolute right-1 text-slate-500 hover:text-red-400 transition">
                         <i class="fas fa-times text-[10px]"></i>
                     </button>
@@ -338,13 +312,11 @@
             formData.append('preferred_voice_provider', document.getElementById('voice-provider').value);
             selectedFiles.forEach(f => formData.append('files', f));
 
-            const token = localStorage.getItem('api_token');
-            const headers = {};
-            if (token && token !== 'AI_HUB_INTERNAL') {
-                headers['Authorization'] = "Bearer " + token;
-            }
-
             try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
+
                 const res = await fetch('/api/multimodal/execute', {
                     method: 'POST',
                     headers: headers,
@@ -355,12 +327,9 @@
                 if (data.dry_run) {
                     currentPlanData = data;
                     showPlanModal(data.plan);
-                } else {
-                    alert('Planning failed');
                 }
-            } catch (e) {
-                alert('Planning error: ' + e.message);
-            } finally {
+            } catch (e) { alert('Error: ' + e.message); }
+            finally {
                 btn.disabled = false;
                 btn.innerHTML = originalHtml;
             }
@@ -372,8 +341,8 @@
                 <div class="flex items-start space-x-4 p-4 rounded-2xl bg-white/5 border border-white/5">
                     <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-emerald-500 shrink-0">${i+1}</div>
                     <div class="flex-grow min-w-0">
-                        <p class="text-sm font-bold text-white truncate">${step.action.toUpperCase().replace('.', ' ')}</p>
-                        <p class="text-[10px] text-slate-500 mt-1 truncate">${JSON.stringify(step.inputs)}</p>
+                        <p class="text-sm font-bold text-white uppercase">${step.action.replace('.', ' ')}</p>
+                        <div class="text-[9px] text-slate-500 mt-1 font-mono bg-black/20 p-2 rounded-lg overflow-x-auto">${JSON.stringify(step.inputs)}</div>
                     </div>
                 </div>
             `).join('');
@@ -392,13 +361,11 @@
             formData.append('preferred_voice_provider', document.getElementById('voice-provider').value);
             selectedFiles.forEach(f => formData.append('files', f));
 
-            const token = localStorage.getItem('api_token');
-            const headers = {};
-            if (token && token !== 'AI_HUB_INTERNAL') {
-                headers['Authorization'] = "Bearer " + token;
-            }
-
             try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
+
                 const res = await fetch('/api/multimodal/execute', {
                     method: 'POST',
                     headers: headers,
@@ -408,19 +375,39 @@
                 if (data.job_id) {
                     closeModal('plan-modal');
                     switchTab('history');
-                    // Reset
                     document.getElementById('main-input').value = '';
                     selectedFiles = [];
                     renderFilePreviews();
-                } else if (data.detail) {
-                    alert('Error: ' + data.detail);
                 }
-            } catch (e) { alert('Execution failed: ' + e.message); }
+            } catch (e) { alert('Failed: ' + e.message); }
             btn.disabled = false;
             btn.innerHTML = 'Approve & Run';
         }
 
+        function renderJobResult(job) {
+            if (job.status !== 'completed' || !job.result) return '';
+            const res = job.result;
+            const finalVal = res.final?.url || res.final?.value || res;
+            if (typeof finalVal === 'string' && finalVal.startsWith('/api/results/')) {
+                const low = finalVal.toLowerCase();
+                if (low.match(/\.(png|jpg|jpeg|webp)$/)) {
+                    return `<img src="${finalVal}" class="rounded-xl max-h-[300px] w-full object-cover shadow-lg mt-2">`;
+                }
+                if (low.match(/\.(mp4|webm)$/)) {
+                    return `<video controls class="w-full rounded-xl aspect-video bg-black mt-2"><source src="${finalVal}"></video>`;
+                }
+                if (low.match(/\.(mp3|wav|ogg)$/)) {
+                    return `<div class="bg-slate-900/80 rounded-2xl p-3 border border-emerald-500/10 mt-2 space-y-2">
+                                <audio controls class="w-full h-8"><source src="${finalVal}"></audio>
+                                <a href="${finalVal}" download class="text-[9px] text-slate-500 block text-right">Download Audio</a>
+                            </div>`;
+                }
+            }
+            return `<div class="p-3 bg-black/20 rounded-xl text-[9px] text-slate-500 font-mono mt-2 overflow-x-auto whitespace-pre-wrap">${JSON.stringify(res, null, 2)}</div>`;
+        }
+
         async function loadHistory() {
+            const list = document.getElementById('history-list');
             try {
                 const token = localStorage.getItem('api_token');
                 const headers = {};
@@ -428,20 +415,18 @@
 
                 const res = await fetch('/api/jobs', {headers: headers});
                 const jobs = await res.json();
-                const list = document.getElementById('history-list');
                 list.innerHTML = Object.values(jobs).sort((a,b) => b.created_at - a.created_at).map(job => `
-                    <div class="card p-5 space-y-3 relative group animate-slide-up">
+                    <div class="card p-6 space-y-3 relative group animate-slide-up hover:border-emerald-500/30 transition">
                         <div class="flex justify-between items-start">
-                            <span class="px-2 py-0.5 rounded bg-white/5 text-[9px] font-black uppercase text-slate-500">${job.type}</span>
-                            <span class="text-[10px] font-bold ${getStatusColor(job.status)} uppercase">${job.status}</span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-[9px] font-black uppercase text-emerald-400">${job.type}</span>
+                            <span class="text-[10px] font-black ${getStatusColor(job.status)} uppercase">${job.status}</span>
                         </div>
-                        <p class="text-xs font-medium line-clamp-2">${job.input.instruction || job.id}</p>
+                        <p class="text-xs font-bold text-slate-200 line-clamp-2">${job.input.instruction || job.id}</p>
                         ${renderJobResult(job)}
+                        ${job.error ? `<p class="text-[10px] text-red-400 mt-2 font-mono">${job.error}</p>` : ''}
                     </div>
                 `).join('');
-            } catch (e) {
-                document.getElementById('history-list').innerHTML = '<p class="text-red-400">Failed to load history</p>';
-            }
+            } catch (e) { list.innerHTML = '<p class="text-red-400">Sync Failed</p>'; }
         }
 
         function getStatusColor(s) {
@@ -450,52 +435,8 @@
             return 'text-blue-400 animate-pulse';
         }
 
-        function renderJobResult(job) {
-            if (job.status !== 'completed' || !job.result) return '';
-            const res = job.result;
-            const finalVal = res.final?.url || res.final?.value || res;
-            if (typeof finalVal === 'string' && finalVal.startsWith('/api/results/')) {
-                if (finalVal.match(/\.(png|jpg|jpeg|webp)$/i)) return `<img src="${finalVal}" class="rounded-lg max-h-32 w-full object-cover">`;
-                if (finalVal.match(/\.(mp4|webm)$/i)) return `<div class="bg-black/20 rounded-lg p-2 flex items-center justify-center space-x-2 text-[10px] font-bold text-emerald-400"><i class="fas fa-video"></i> <span>Video Ready</span></div>`;
-            }
-            return '<div class="text-[10px] text-slate-500">Result available</div>';
-        }
-
-        async function deleteJob(jobId) {
-            if (!confirm('Are you sure you want to delete this item?')) return;
-            try {
-                const token = localStorage.getItem('api_token');
-                const headers = {};
-                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
-                
-                await fetch('/api/jobs/' + jobId, { method: 'DELETE', headers: headers });
-                loadGallery();
-                loadHistory();
-            } catch (e) { alert('Delete failed'); }
-        }
-
-        async function uploadToGallery(file) {
-            if (!file) return;
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const token = localStorage.getItem('api_token');
-                const headers = {};
-                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
-                
-                const res = await fetch('/api/gallery/upload', {
-                    method: 'POST',
-                    headers: headers,
-                    body: formData
-                });
-                if (res.ok) loadGallery();
-                else alert('Upload failed');
-            } catch (e) { alert('Upload error: ' + e.message); }
-        }
-
         async function loadGallery() {
             const list = document.getElementById('gallery-grid');
-            list.innerHTML = '<p class="text-slate-500 col-span-full text-center">Loading media...</p>';
             try {
                 const token = localStorage.getItem('api_token');
                 const headers = {};
@@ -507,28 +448,70 @@
                     const r = j.result;
                     const url = r.final?.url || (typeof r === 'string' && r.startsWith('/api/results/') ? r : null);
                     return { url, goal: j.input.instruction || j.id, id: j.id };
-                }).filter(m => m.url && m.url.match(/\.(png|jpg|jpeg|webp|mp4|webm)$/i));
+                }).filter(m => m.url && m.url.match(/\.(png|jpg|jpeg|webp|mp4|webm|mp3|wav|ogg)$/i));
                 
                 if (!media.length) {
-                    list.innerHTML = '<p class="text-slate-500 col-span-full text-center py-10">No media found.</p>';
+                    list.innerHTML = '<p class="text-slate-500 col-span-full text-center py-20">No media found.</p>';
                     return;
                 }
 
                 list.innerHTML = media.map(m => {
                     const isVid = m.url.match(/\.(mp4|webm)$/i);
+                    const isAud = m.url.match(/\.(mp3|wav|ogg)$/i);
                     return `
-                        <div class="card overflow-hidden group aspect-square bg-slate-900 shadow-xl relative">
-                            ${isVid ? `<video src="${m.url}" class="w-full h-full object-cover"></video>` : `<img src="${m.url}" class="w-full h-full object-cover">`}
-                            <a href="${m.url}" target="_blank" class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                                <i class="fas ${isVid ? 'fa-play' : 'fa-expand'} text-white text-xl"></i>
-                            </a>
-                            <button onclick="deleteJob('${m.id}')" class="absolute top-2 right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition flex items-center justify-center shadow-lg">
-                                <i class="fas fa-trash text-xs"></i>
-                            </button>
+                        <div class="card overflow-hidden group aspect-square bg-slate-900 relative">
+                            ${isVid ? `<video src="${m.url}" class="w-full h-full object-cover"></video>` : (isAud ? `<div class="w-full h-full flex items-center justify-center bg-slate-800"><i class="fas fa-waveform-lines text-emerald-500"></i></div>` : `<img src="${m.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">`)}
+                            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center space-x-2">
+                                <a href="${m.url}" target="_blank" class="w-10 h-10 bg-white text-slate-950 rounded-full flex items-center justify-center hover:scale-110 transition"><i class="fas ${isVid || isAud ? 'fa-play' : 'fa-expand'}"></i></a>
+                                <button onclick="deleteJob('${m.id}')" class="w-10 h-10 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition"><i class="fas fa-trash-alt"></i></button>
+                            </div>
                         </div>
                     `;
                 }).join('');
-            } catch (e) { list.innerHTML = '<p class="text-red-400 col-span-full text-center">Failed to load gallery</p>'; }
+            } catch (e) { list.innerHTML = '<p class="text-red-400 col-span-full text-center">Sync Error</p>'; }
+        }
+
+        async function uploadToGallery(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
+                const res = await fetch('/api/gallery/upload', { method: 'POST', headers: headers, body: formData });
+                if (res.ok) loadGallery();
+            } catch (e) {}
+        }
+
+        async function deleteJob(jobId) {
+            if (!confirm('Delete this asset?')) return;
+            try {
+                const token = localStorage.getItem('api_token');
+                const headers = {};
+                if (token && token !== 'AI_HUB_INTERNAL') headers['Authorization'] = "Bearer " + token;
+                await fetch('/api/jobs/' + jobId, { method: 'DELETE', headers: headers });
+                loadGallery();
+                loadHistory();
+            } catch (e) {}
+        }
+
+        async function generateApiKey() {
+            const label = prompt("Enter Key Label:");
+            if (!label) return;
+            const formData = new FormData();
+            formData.append('label', label);
+            try {
+                const res = await fetch('/api/tokens/create', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.token) {
+                    prompt("API KEY:", data.token);
+                    if (confirm("Set as session token?")) {
+                        localStorage.setItem('api_token', data.token);
+                        location.reload();
+                    }
+                }
+            } catch (e) {}
         }
 
         async function fetchQuota() {
@@ -538,50 +521,21 @@
                 const quotas = await res.json();
                 if (quotas.credits) {
                     const pct = Math.round((quotas.credits.remaining / quotas.credits.limit) * 100);
-                    document.getElementById('quota-val').innerText = pct + '%';
-                    document.getElementById('quota-bar').style.width = pct + '%';
+                    document.getElementById('quota-val-top').innerText = pct + '%';
+                    const bar = document.getElementById('quota-bar');
+                    if (bar) bar.style.width = pct + '%';
                 }
             } catch (e) {}
         }
 
-        async function generateApiKey() {
-            const label = prompt("Enter a label for this API key:");
-            if (!label) return;
-            const formData = new FormData();
-            formData.append('label', label);
-            try {
-                const res = await fetch('/api/tokens/create', { method: 'POST', body: formData });
-                const data = await res.json();
-                if (data.token) {
-                    prompt("Your new API Key. Copy it now, it won't be shown again:", data.token);
-                    // Optionally set it as default in this browser
-                    if (confirm("Set this as your active token for this browser?")) {
-                        localStorage.setItem('api_token', data.token);
-                        alert("Token set!");
-                    }
-                } else {
-                    alert("Failed to generate token.");
-                }
-            } catch (e) { alert("Error: " + e.message); }
-        }
-
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        // --- Admin Check ---
-        if (currentUserEmail === "yeonwoo.kim03@gmail.com") {
-            document.getElementById('admin-section').classList.remove('hidden');
-        }
-
-        // --- Global Token Init ---
-        if (!localStorage.getItem('api_token')) {
-            localStorage.setItem('api_token', 'AI_HUB_INTERNAL');
-        }
-
         // --- Init ---
+        if (currentUserEmail === "yeonwoo.kim03@gmail.com") document.getElementById('admin-link-container').classList.remove('hidden');
+        if (!localStorage.getItem('api_token')) localStorage.setItem('api_token', 'AI_HUB_INTERNAL');
+        
         fetchQuota();
         setInterval(fetchQuota, 30000);
-
-        // --- DnD ---
         document.body.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
         document.body.addEventListener('drop', e => {
             e.preventDefault(); e.stopPropagation();

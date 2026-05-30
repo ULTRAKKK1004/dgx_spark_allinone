@@ -233,7 +233,7 @@ async def generate_lecture_video(
     async with gpu_arbiter.acquire("heavy"):
         # 1. 배경 & 인물 생성 (Stage 1a)
         logger.info("Lecture Stage 1a: Generating base image...")
-        lecture_prompt = f"Professional lecturer, {prompt}, auditorium background, cinematic lighting, 8k, sharp focus"
+        lecture_prompt = f"A professional lecturer, medium portrait shot, front view, looking at camera, {prompt}, auditorium background, cinematic lighting, 8k, sharp focus, high detail"
         # Note: media_image.generate_image 내부에서도 acquire를 시도하지만, 
         # gpu_arbiter의 lock은 재진입(reentrant)이 가능하거나 
         # 이미 락을 쥐고 있으면 패스하므로 안전합니다.
@@ -272,11 +272,11 @@ async def generate_lecture_video(
                 proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
                 await proc.communicate()
                 
-                # 립싱크 실행 (Wav2Lip 사용)
+                # 립싱크 실행 (LivePortrait 사용 - 고품질)
                 chunk_video = await lipsync_video(
                     str(looped_idle), 
                     str(audio_chunk), 
-                    workflow="video.lipsync.wav2lip"
+                    workflow="video.lipsync.liveportrait"
                 )
                 chunk_paths.append(chunk_video)
                 looped_idle.unlink(missing_ok=True)
@@ -335,11 +335,9 @@ async def lipsync_video(
 
     params = {
         "audio_name": audio_name,
+        "image_name": filename,
+        "fps": 25,
     }
-    if workflow == "video.lipsync.wav2lip":
-        params["image_name"] = filename # Wav2Lip node names its input image_name even for videos usually
-    else:
-        params["image_name"] = filename
 
     out = await runner.run(workflow, **params)
     return out

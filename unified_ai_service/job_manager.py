@@ -17,7 +17,7 @@ def save_jobs(jobs):
     with open(JOB_FILE, "w") as f:
         json.dump(jobs, f)
 
-def create_job(job_type: str, input_data: dict) -> str:
+def create_job(job_type: str, input_data: dict, user_email: str = "Guest") -> str:
     import uuid
     job_id = str(uuid.uuid4())
     jobs = get_jobs()
@@ -28,7 +28,8 @@ def create_job(job_type: str, input_data: dict) -> str:
         "input": input_data,
         "result": None,
         "error": None,
-        "created_at": time.time()
+        "created_at": time.time(),
+        "user_email": user_email
     }
     save_jobs(jobs)
     return job_id

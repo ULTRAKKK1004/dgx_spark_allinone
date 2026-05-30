@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 ERROR_DIR = "/home/yanus/unified_ai_service/results/_errors"
 
 
-async def submit(job_type: str, payload: dict, coro) -> str:
+async def submit(job_type: str, payload: dict, coro, user_email: str = "Guest") -> str:
     """잡을 등록하고 background에서 coro 실행."""
-    job_id = job_manager.create_job(job_type, payload)
+    job_id = job_manager.create_job(job_type, payload, user_email=user_email)
     asyncio.create_task(_run(job_id, coro))
     return job_id
 

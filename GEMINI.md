@@ -8,6 +8,7 @@ This project leverages the **Superpowers** and **Coding** skills installed in `/
 ### Active Skills
 - `superpowers:*` (Writing Plans, Executing Plans, Subagent Development)
 - `coding:*` (Expert Python, Engineering Standards)
+- `multimodal:*` (Video Production, Audio Generation, Image Synthesis)
 
 ## Technical Architecture
 - **Backend**: FastAPI (Python 3.12) in `unified_ai_service/`.

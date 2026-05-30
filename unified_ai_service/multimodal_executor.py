@@ -431,7 +431,7 @@ def _results_url_to_path(value: str) -> str:
 
 
 async def _await_llm_step(awaitable, label: str):
-    timeout = float(os.getenv("MULTIMODAL_LLM_STEP_TIMEOUT", "60"))
+    timeout = float(os.getenv("MULTIMODAL_LLM_STEP_TIMEOUT", "120"))
     try:
         return await asyncio.wait_for(awaitable, timeout=timeout)
     except asyncio.TimeoutError as exc:
@@ -500,6 +500,4 @@ ACTION_HANDLERS = {
     "video.storyboard": _handle_video_storyboard,
 
     "package.bundle": _handle_package_bundle,
-}
-
 }

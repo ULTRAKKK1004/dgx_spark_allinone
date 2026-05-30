@@ -15,6 +15,9 @@ async def generate_image(
     **kwargs,
 ) -> Path:
     """텍스트→이미지. workflow in {"zimage_turbo", "flux"}."""
+    # Ensure explicit args are not in kwargs
+    kwargs.pop("prompt", None)
+    kwargs.pop("workflow", None)
     workflow_id = f"image.gen.{workflow}"
     return await runner.run(workflow_id, prompt=prompt, **kwargs)
 
@@ -26,6 +29,8 @@ async def edit_image(
     **kwargs,
 ) -> Path:
     """이미지+프롬프트→편집된 이미지. workflow in {"qwen"}."""
+    kwargs.pop("prompt", None)
+    kwargs.pop("image_name", None)
     filename = f"edit_{uuid.uuid4().hex[:8]}_{os.path.basename(image_path)}"
     await comfyui_client.upload_image(image_path, filename)
     workflow_id = f"image.edit.{workflow}"

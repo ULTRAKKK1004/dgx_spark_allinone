@@ -274,10 +274,12 @@ async def get_test_report(request: Request):
     if email != ADMIN_EMAIL:
         return JSONResponse(status_code=403, content={"error": "Forbidden"})
     
-    report_path = "/home/yanus/test_report.json"
-    if os.path.exists(report_path):
-        with open(report_path, "r") as f:
-            return JSONResponse(content=json.load(f))
+    # Priority: Real execution report, then Planning-only report
+    paths = ["/home/yanus/real_test_report.json", "/home/yanus/test_report.json"]
+    for report_path in paths:
+        if os.path.exists(report_path):
+            with open(report_path, "r") as f:
+                return JSONResponse(content=json.load(f))
     return JSONResponse(content=[])
 
 @app.post("/admin/user/{user_id}/level")

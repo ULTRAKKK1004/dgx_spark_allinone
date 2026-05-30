@@ -3,6 +3,8 @@ import uuid
 import base64
 import asyncio
 import logging
+import shutil
+import aiohttp
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header, Request, BackgroundTasks
 
 # Logging setup
@@ -62,20 +64,19 @@ async def flexible_auth(request: Request, authorization: Optional[str] = Header(
     if authorization:
         token = authorization.replace("Bearer ", "")
         if auth_service.verify_token(token):
-            return token
+            return {"type": "token", "token": token, "email": "admin@tor-ai.com"} # Treat valid token as admin
         logger.warning(f"Invalid API Token: {token[:10]}...")
         raise HTTPException(status_code=401, detail="Invalid API Token")
-    
+
     referer = request.headers.get("referer", "")
     host = request.headers.get("host", "")
     logger.info(f"Auth Check - Host: {host}, Referer: {referer}")
-    
+
     if (host and host in referer) or not referer:
-        return "web_ui_session"
-    
+        return {"type": "web_ui", "email": request.headers.get("X-Email", "Guest")}
+
     logger.warning(f"Auth Failed - Host: {host}, Referer: {referer}")
     raise HTTPException(status_code=401, detail="Missing Authorization Header or Invalid Referer")
-
 class ChatRequest(BaseModel):
     prompt: str
     system_prompt: str = "You are a helpful AI assistant running on DGX Spark."
@@ -203,13 +204,34 @@ async def multimodal_execute_endpoint(
     preferred_voice_provider: str = Form("auto"),
     preferred_voice: str = Form("default"),
     files: Optional[List[UploadFile]] = File(None),
+    dry_run: bool = Form(False),
     auth = Depends(flexible_auth),
 ):
     if quality not in {"draft", "standard", "high"}:
         raise HTTPException(status_code=400, detail="quality must be draft, standard, or high")
     if preferred_voice_provider not in {"auto", "local_f5", "elevenlabs"}:
         raise HTTPException(status_code=400, detail="preferred_voice_provider must be auto, local_f5, or elevenlabs")
+    
     assets = await _save_multimodal_uploads(files)
+    
+    if dry_run:
+        plan = await multimodal_router.plan_request(
+            instruction, assets, quality, preferred_voice_provider, preferred_voice
+        )
+        return {"dry_run": True, "plan": plan.to_dict(), "assets": [a.to_dict() for a in assets]}
+
+    # Deduct quota (Phase C)
+    user_email = auth.get("email")
+    if user_email and user_email not in ["Guest", "yeonwoo.kim03@gmail.com", "admin@tor-ai.com"]:
+        async with aiohttp.ClientSession() as session:
+            # 10 credits per multimodal task
+            async with session.post(
+                "http://localhost:8002/api/user/quota/deduct",
+                params={"email": user_email, "type": "credits", "amount": 10}
+            ) as resp:
+                if resp.status == 403:
+                    raise HTTPException(status_code=403, detail="Insufficient credits")
+
     job_id = job_manager.create_job(
         "multimodal",
         {
@@ -219,6 +241,7 @@ async def multimodal_execute_endpoint(
             "preferred_voice": preferred_voice,
             "assets": [asset.to_dict() for asset in assets],
         },
+        user_email=user_email
     )
     background_tasks.add_task(process_multimodal_task, job_id, instruction, assets, quality, preferred_voice_provider, preferred_voice)
     return {"job_id": job_id}
@@ -236,17 +259,19 @@ async def elevenlabs_voices_endpoint(auth = Depends(flexible_auth)):
 
 @app.post("/api/media/image")
 async def generate_image_endpoint(prompt: str = Form(...), workflow: str = Form("zimage_turbo"), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     coro = media_image.generate_image(prompt, workflow=workflow)
-    job_id = await job_queue.submit("media_image", {"prompt": prompt, "workflow": workflow}, coro)
+    job_id = await job_queue.submit("media_image", {"prompt": prompt, "workflow": workflow}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/image/edit")
 async def edit_image_endpoint(prompt: str = Form(...), image: UploadFile = File(...), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     img_path = os.path.join(UPLOADS_DIR, f"edit_in_{uuid.uuid4().hex}_{image.filename}")
     with open(img_path, "wb") as f:
         f.write(await image.read())
     coro = media_image.edit_image(img_path, prompt)
-    job_id = await job_queue.submit("media_image_edit", {"prompt": prompt}, coro)
+    job_id = await job_queue.submit("media_image_edit", {"prompt": prompt}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/image/control")
@@ -257,6 +282,7 @@ async def control_image_endpoint(
     control_image: UploadFile = File(...),
     auth = Depends(flexible_auth),
 ):
+    user_email = auth.get("email")
     img_path = os.path.join(UPLOADS_DIR, f"ctrl_in_{uuid.uuid4().hex}_{control_image.filename}")
     with open(img_path, "wb") as f:
         f.write(await control_image.read())
@@ -265,6 +291,7 @@ async def control_image_endpoint(
         "media_image_control",
         {"prompt": prompt, "control_type": control_type, "strength": strength},
         coro,
+        user_email=user_email
     )
     return {"job_id": job_id}
 
@@ -275,6 +302,7 @@ async def inpaint_image_endpoint(
     mask: UploadFile = File(...),
     auth = Depends(flexible_auth),
 ):
+    user_email = auth.get("email")
     img_path = os.path.join(UPLOADS_DIR, f"inp_img_{uuid.uuid4().hex}_{image.filename}")
     msk_path = os.path.join(UPLOADS_DIR, f"inp_msk_{uuid.uuid4().hex}_{mask.filename}")
     with open(img_path, "wb") as f:
@@ -282,40 +310,44 @@ async def inpaint_image_endpoint(
     with open(msk_path, "wb") as f:
         f.write(await mask.read())
     coro = media_image.inpaint_image(img_path, msk_path, prompt)
-    job_id = await job_queue.submit("media_image_inpaint", {"prompt": prompt}, coro)
+    job_id = await job_queue.submit("media_image_inpaint", {"prompt": prompt}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/music")
 async def generate_music_endpoint(prompt: str = Form(...), duration: int = Form(10), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     if duration > 30:
         coro = media_audio.generate_long_music(prompt, duration)
     else:
         coro = media_audio.generate_music(prompt, duration)
-    job_id = await job_queue.submit("media_music", {"prompt": prompt, "duration": duration}, coro)
+    job_id = await job_queue.submit("media_music", {"prompt": prompt, "duration": duration}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/tts")
 async def generate_tts_endpoint(text: str = Form(...), ref_audio: UploadFile = File(None), ref_text: str = Form(""), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     ref_path = ""
     if ref_audio:
         ref_path = os.path.join(UPLOADS_DIR, f"ref_{uuid.uuid4().hex}_{ref_audio.filename}")
         with open(ref_path, "wb") as f:
             f.write(await ref_audio.read())
     coro = media_audio.generate_tts_with_effects(text, ref_path, ref_text)
-    job_id = await job_queue.submit("media_tts", {"text": text}, coro)
+    job_id = await job_queue.submit("media_tts", {"text": text}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/video/gen")
 async def generate_video_endpoint(prompt: str = Form(...), duration: int = Form(30), base_image: UploadFile = File(...), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     img_path = os.path.join(UPLOADS_DIR, f"base_img_{uuid.uuid4().hex}_{base_image.filename}")
     with open(img_path, "wb") as f:
         f.write(await base_image.read())
     coro = media_video.generate_long_video(prompt, img_path, duration)
-    job_id = await job_queue.submit("media_video_gen", {"prompt": prompt, "duration": duration}, coro)
+    job_id = await job_queue.submit("media_video_gen", {"prompt": prompt, "duration": duration}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/video/edit")
 async def edit_video_endpoint(prompt: str = Form(""), video: UploadFile = File(...), audio: UploadFile = File(None), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     vid_path = os.path.join(UPLOADS_DIR, f"edit_vid_{uuid.uuid4().hex}_{video.filename}")
     with open(vid_path, "wb") as f:
         f.write(await video.read())
@@ -325,47 +357,52 @@ async def edit_video_endpoint(prompt: str = Form(""), video: UploadFile = File(.
         with open(aud_path, "wb") as f:
             f.write(await audio.read())
     coro = media_video.edit_video(vid_path, aud_path, prompt=prompt)
-    job_id = await job_queue.submit("media_video_edit", {"prompt": prompt}, coro)
+    job_id = await job_queue.submit("media_video_edit", {"prompt": prompt}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/video/shorts")
 async def video_shorts_endpoint(prompt: str = Form(""), video: UploadFile = File(...), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     vid_path = os.path.join(UPLOADS_DIR, f"shorts_vid_{uuid.uuid4().hex}_{video.filename}")
     with open(vid_path, "wb") as f:
         f.write(await video.read())
     coro = media_video.shorten_video(vid_path, prompt)
-    job_id = await job_queue.submit("media_video_shorts", {"prompt": prompt}, coro)
+    job_id = await job_queue.submit("media_video_shorts", {"prompt": prompt}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/media/video/analyze")
 async def video_analyze_endpoint(prompt: str = Form(""), video: UploadFile = File(...), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     vid_path = os.path.join(UPLOADS_DIR, f"analyze_vid_{uuid.uuid4().hex}_{video.filename}")
     with open(vid_path, "wb") as f:
         f.write(await video.read())
     coro = media_video.analyze_video(vid_path, prompt)
-    job_id = await job_queue.submit("media_video_analyze", {"prompt": prompt}, coro)
+    job_id = await job_queue.submit("media_video_analyze", {"prompt": prompt}, coro, user_email=user_email)
     return {"job_id": job_id}
 
 @app.post("/api/llm/chat")
 async def chat_endpoint(req: ChatRequest, background_tasks: BackgroundTasks, auth = Depends(flexible_auth)):
-    job_id = job_manager.create_job("llm", {"prompt": req.prompt})
+    user_email = auth.get("email")
+    job_id = job_manager.create_job("llm", {"prompt": req.prompt}, user_email=user_email)
     background_tasks.add_task(process_llm_task, job_id, req)
     return {"job_id": job_id}
 
 @app.post("/api/vlm/analyze")
 async def analyze_image_endpoint(background_tasks: BackgroundTasks, prompt: str = Form(...), image: UploadFile = File(...), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
     img_bytes = await image.read()
     base64_encoded = base64.b64encode(img_bytes).decode('utf-8')
     mime_type = image.content_type or "image/jpeg"
     data_url = f"data:{mime_type};base64,{base64_encoded}"
     
-    job_id = job_manager.create_job("vlm", {"prompt": prompt, "filename": image.filename})
+    job_id = job_manager.create_job("vlm", {"prompt": prompt, "filename": image.filename}, user_email=user_email)
     background_tasks.add_task(process_vlm_task, job_id, data_url, prompt)
     return {"job_id": job_id}
 
 @app.post("/api/audio/stt")
 async def stt_endpoint(background_tasks: BackgroundTasks, audio: UploadFile = File(...), auth = Depends(flexible_auth)):
-    job_id = job_manager.create_job("stt", {"filename": audio.filename})
+    user_email = auth.get("email")
+    job_id = job_manager.create_job("stt", {"filename": audio.filename}, user_email=user_email)
     ext = audio.filename.split('.')[-1] if '.' in audio.filename else "mp3"
     filepath = os.path.join(UPLOADS_DIR, f"{job_id}.{ext}")
     with open(filepath, "wb") as f:
@@ -376,27 +413,62 @@ async def stt_endpoint(background_tasks: BackgroundTasks, audio: UploadFile = Fi
 
 @app.post("/api/ppt/generate")
 async def generate_ppt_endpoint(background_tasks: BackgroundTasks, topic: str = Form(...), auth = Depends(flexible_auth)):
-    job_id = job_manager.create_job("ppt", {"topic": topic})
+    user_email = auth.get("email")
+    job_id = job_manager.create_job("ppt", {"topic": topic}, user_email=user_email)
     background_tasks.add_task(process_ppt_task, job_id, topic)
     return {"job_id": job_id}
 
 # Job Management Endpoints
 @app.get("/api/jobs")
 async def get_all_jobs(auth = Depends(flexible_auth)):
-    return job_manager.get_jobs()
+    jobs = job_manager.get_jobs()
+    user_email = auth.get("email")
+    if user_email in ["yeonwoo.kim03@gmail.com", "admin@tor-ai.com"]:
+        return jobs
+    return {k: v for k, v in jobs.items() if v.get("user_email") == user_email}
 
 @app.get("/api/jobs/{job_id}")
 async def get_job_status(job_id: str, auth = Depends(flexible_auth)):
     jobs = job_manager.get_jobs()
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
-    return jobs[job_id]
+    job = jobs[job_id]
+    user_email = auth.get("email")
+    if user_email not in ["yeonwoo.kim03@gmail.com", "admin@tor-ai.com"] and job.get("user_email") != user_email:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return job
 
 @app.delete("/api/jobs/{job_id}")
 async def delete_job_endpoint(job_id: str, auth = Depends(flexible_auth)):
+    jobs = job_manager.get_jobs()
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job = jobs[job_id]
+    user_email = auth.get("email")
+    if user_email not in ["yeonwoo.kim03@gmail.com", "admin@tor-ai.com"] and job.get("user_email") != user_email:
+        raise HTTPException(status_code=403, detail="Forbidden")
     job_manager.delete_job(job_id)
     return {"status": "deleted"}
 
+@app.post("/api/gallery/upload")
+async def gallery_upload_endpoint(file: UploadFile = File(...), auth = Depends(flexible_auth)):
+    user_email = auth.get("email")
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    ext = file.filename.split('.')[-1] if '.' in file.filename else "dat"
+    filename = f"gallery_{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(RESULTS_DIR, filename) # Save to results so it can be served
+    with open(filepath, "wb") as f:
+        f.write(await file.read())
+        
+    job_id = job_manager.create_job(
+        "gallery_upload", 
+        {"instruction": "Direct Upload", "filename": file.filename},
+        user_email=user_email
+    )
+    job_manager.update_job(job_id, "completed", result=f"/api/results/{filename}")
+    return {"status": "success", "job_id": job_id, "url": f"/api/results/{filename}"}
 @app.get("/api/health/vllm")
 async def health_vllm():
     return {"state": gpu_arbiter.state(), "available": gpu_arbiter.vllm_available()}
@@ -417,12 +489,45 @@ async def get_result_file(filename: str):
         return FileResponse(filepath)
     raise HTTPException(status_code=404, detail="File not found")
 
+@app.get("/api/user/quota")
+async def proxy_get_quota(email: str):
+    async with aiohttp.ClientSession() as session:
+        async with session.get("http://localhost:8002/api/user/quota", params={"email": email}) as resp:
+            if resp.status != 200:
+                return {"credits": {"remaining": 0, "limit": 0}}
+            return await resp.json()
+
 # User management endpoints
 @app.get("/api/user/info")
 async def get_user_info(request: Request):
+    # 1. Check headers from Nginx (active when auth_request is used)
     email = request.headers.get("X-Email")
-    user = request.headers.get("X-User")
-    return {"email": email, "name": user}
+    name = request.headers.get("X-Preferred-Username") or request.headers.get("X-User")
+    picture = request.headers.get("X-User-Image")
+    
+    if email and email not in ["", "None", "Guest"]:
+        return {"email": email, "name": name, "picture": picture}
+        
+    # 2. Try manual verification with cookies (for public landing page check)
+    cookie = request.headers.get("Cookie")
+    if cookie:
+        try:
+            async with aiohttp.ClientSession() as session:
+                # We pass Host to user_manager so it knows which domain to check
+                async with session.get(
+                    "http://localhost:8002/auth/verify", 
+                    headers={"Cookie": cookie, "Host": request.headers.get("Host", "tor-ai.com")}
+                ) as resp:
+                    if resp.status == 200:
+                        return {
+                            "email": resp.headers.get("X-Auth-Request-Email"),
+                            "name": resp.headers.get("X-Auth-Request-Preferred-Username") or resp.headers.get("X-Auth-Request-User"),
+                            "picture": resp.headers.get("X-Auth-Request-Image")
+                        }
+        except Exception as e:
+            logger.error(f"Manual auth check failed: {e}")
+
+    return {"email": "Guest", "name": "Guest"}
 
 @app.get("/logout")
 async def logout(request: Request):

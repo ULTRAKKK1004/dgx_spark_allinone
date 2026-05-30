@@ -7,9 +7,25 @@
     "class_type": "LivePortraitLoadMediaPipeCropper",
     "inputs": { "device": "CPU", "include_neck": true }
   },
-  "source_image": {
-    "class_type": "LoadImage",
-    "inputs": { "image": {{ image_name | tojson }}, "upload": "image" }
+  "load_driving_video": {
+    "class_type": "VHS_LoadVideo",
+    "inputs": {
+      "video": {{ image_name | tojson }},
+      "force_rate": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "meta_batch": 1,
+      "upload": "image"
+    }
+  },
+  "load_source_frame": {
+    "class_type": "VHS_LoadVideo",
+    "inputs": {
+      "video": {{ image_name | tojson }},
+      "frame_load_cap": 1,
+      "upload": "image"
+    }
   },
   "load_audio": {
     "class_type": "LoadAudio",
@@ -20,7 +36,7 @@
     "inputs": {
       "pipeline": ["loader", 0],
       "cropper": ["cropper_load", 0],
-      "source_image": ["source_image", 0],
+      "source_image": ["load_source_frame", 0],
       "dsize": 512,
       "scale": 2.3,
       "vy_ratio": -0.125
@@ -31,8 +47,8 @@
     "inputs": {
       "pipeline": ["loader", 0],
       "crop_info": ["source_crop", 1],
-      "source_image": ["source_image", 0],
-      "driving_images": ["source_image", 0],
+      "source_image": ["load_source_frame", 0],
+      "driving_images": ["load_driving_video", 0],
       "lip_zero": true,
       "lip_zero_threshold": 0.03
     }
@@ -40,7 +56,7 @@
   "composite": {
     "class_type": "LivePortraitComposite",
     "inputs": {
-      "full_images": ["source_image", 0],
+      "full_images": ["load_driving_video", 0],
       "cropped_image": ["process", 0],
       "liveportrait_out": ["process", 1]
     }
@@ -55,6 +71,8 @@
       "filename_prefix": "liveportrait_lipsync",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
       "pingpong": false,
       "save_output": true
     }

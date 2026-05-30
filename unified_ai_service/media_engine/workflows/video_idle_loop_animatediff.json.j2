@@ -19,27 +19,31 @@
     "class_type": "VAEEncode",
     "inputs": { "pixels": ["load_image", 0], "vae": ["sdxl_loader", 2] }
   },
+  "repeat_latent": {
+    "class_type": "RepeatLatentBatch",
+    "inputs": { "samples": ["vae_encode", 0], "amount": 16 }
+  },
   "pos": {
     "class_type": "CLIPTextEncode",
     "inputs": { "text": {{ prompt | tojson }}, "clip": ["sdxl_loader", 1] }
   },
   "neg": {
     "class_type": "CLIPTextEncode",
-    "inputs": { "text": "fast movement, chaotic, blurry, distorted face", "clip": ["sdxl_loader", 1] }
+    "inputs": { "text": "fast movement, chaotic, blurry, distorted face, changing background", "clip": ["sdxl_loader", 1] }
   },
   "sampler": {
     "class_type": "KSampler",
     "inputs": {
       "seed": 42,
-      "steps": 20,
-      "cfg": 8.0,
+      "steps": 25,
+      "cfg": 6.0,
       "sampler_name": "euler",
       "scheduler": "normal",
-      "denoise": 0.35,
+      "denoise": 0.15,
       "model": ["ad_loader", 0],
       "positive": ["pos", 0],
       "negative": ["neg", 0],
-      "latent_image": ["vae_encode", 0]
+      "latent_image": ["repeat_latent", 0]
     }
   },
   "decode": {

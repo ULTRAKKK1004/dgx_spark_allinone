@@ -2,7 +2,7 @@
   "1": {
     "class_type": "UNETLoader",
     "inputs": {
-      "unet_name": "{% if workflow == 'schnell' %}FLUX1/flux1-schnell-fp8.safetensors{% else %}FLUX1/flux1-dev-fp8.safetensors{% endif %}",
+      "unet_name": "{% if flux_variant == 'schnell' %}FLUX1/flux1-schnell-fp8.safetensors{% else %}FLUX1/flux1-dev-fp8.safetensors{% endif %}",
       "weight_dtype": "default"
     }
   },

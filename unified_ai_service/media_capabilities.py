@@ -19,8 +19,8 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     },
     "ppt.generate": {
         "kind": "document",
-        "description": "Create a PowerPoint deck from a topic or outline.",
-        "inputs": {"topic": "string"},
+        "description": "Create a high-fidelity 16:9 PowerPoint deck via HTML rendering. Supports complex layouts, charts, and tables.",
+        "inputs": {"topic": "string", "instruction": "optional layout instruction"},
         "outputs": {"ppt": "pptx file url"},
     },
     "image.generate": {
@@ -120,6 +120,18 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "kind": "video",
         "description": "Generate a full lecture video: Stage 1 (Face Swap) -> Stage 2 (Idle Loop) -> Stage 3 (Lip-sync).",
         "inputs": {"image": "lecturer face alias", "audio": "narration alias", "prompt": "optional lecture topic"},
+        "outputs": {"video": "video file url"},
+    },
+    "video.lecture.pro": {
+        "kind": "video",
+        "description": "Generate a complex, 30+ min PPT-synced lecture video with PiP and BGM.",
+        "inputs": {"image": "lecturer face alias", "script": "script text alias", "topic": "presentation topic"},
+        "outputs": {"video": "video file url"},
+    },
+    "video.storyboard": {
+        "kind": "video",
+        "description": "Generate multi-scene videos for animation, drama, and ads from a prompt.",
+        "inputs": {"prompt": "story/ad description", "genre": "optional genre string"},
         "outputs": {"video": "video file url"},
     },
     "package.bundle": {

@@ -32,7 +32,7 @@ WORKFLOWS: dict[str, dict[str, Any]] = {
         ],
         "output_node": "9",
         "vram_class": "light",
-        "timeout_sec": 90,
+        "timeout_sec": 300,
     },
     "image.edit.qwen": {
         "template": "image_edit_qwen.json.j2",
@@ -104,7 +104,7 @@ WORKFLOWS: dict[str, dict[str, Any]] = {
             "steps":    (int,   20),
             "seed":     (int,   0),
             "guidance": (float, 3.5),
-            "workflow": (str, "dev"),
+            "flux_variant": (str, "dev"),
         },
         "models_required": [
             "diffusion_models/FLUX1/flux1-dev-fp8.safetensors",
@@ -227,7 +227,7 @@ WORKFLOWS: dict[str, dict[str, Any]] = {
         ],
         "output_node": "save_image",
         "vram_class": "heavy",
-        "timeout_sec": 60,
+        "timeout_sec": 180,
     },
     "video.idle_loop.animatediff": {
         "template": "video_idle_loop_animatediff.json.j2",

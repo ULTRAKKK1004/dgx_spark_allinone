@@ -123,11 +123,11 @@
                 }
                 
                 tbody.innerHTML = data.map(item => `
-                    <tr style="background-color: ${item.status === 'success' ? '#e6fffa' : '#fee2e2'};">
+                    <tr style="background-color: ${item.status === 'completed' || item.status === 'success' ? '#e6fffa' : (item.status === 'failed' || item.status === 'error' ? '#fee2e2' : '#fef9c3')};">
                         <td>${item.id}</td>
-                        <td><strong>${item.goal}</strong></td>
+                        <td><strong>${item.goal || (item.instruction ? 'Planning...' : '-')}</strong></td>
                         <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.instruction}">${item.instruction}</td>
-                        <td style="color: ${item.status === 'success' ? 'green' : 'red'};"><strong>${item.status.toUpperCase()}</strong></td>
+                        <td style="color: ${item.status === 'completed' || item.status === 'success' ? 'green' : (item.status === 'failed' || item.status === 'error' ? 'red' : 'orange')};"><strong>${item.status.toUpperCase()}</strong></td>
                         <td>${item.error || '-'}</td>
                     </tr>
                 `).join('');
@@ -136,6 +136,7 @@
             }
         }
         loadTestReport();
+        setInterval(loadTestReport, 30000); // Auto refresh
     </script>
 </body>
 </html>

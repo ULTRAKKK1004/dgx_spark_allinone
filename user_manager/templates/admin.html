@@ -89,6 +89,53 @@
                 </tbody>
             </table>
         </section>
+        <section>
+            <h2>Stress Test Reports</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Test ID</th>
+                        <th>Goal</th>
+                        <th>Instruction</th>
+                        <th>Status</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody id="test-report-body">
+                    <tr><td colspan="5">Loading report... (Ensure run_50_tests.py has been executed)</td></tr>
+                </tbody>
+            </table>
+        </section>
     </main>
+    <script>
+        async function loadTestReport() {
+            try {
+                // Fetch the report directly from the server or assume it's served somewhere.
+                // We'll add an endpoint in user_manager to serve this JSON file since admin lives here.
+                const res = await fetch('/admin/test_report');
+                if (!res.ok) throw new Error('Report not found');
+                const data = await res.json();
+                
+                const tbody = document.getElementById('test-report-body');
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">No test data available.</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.map(item => `
+                    <tr style="background-color: ${item.status === 'success' ? '#e6fffa' : '#fee2e2'};">
+                        <td>${item.id}</td>
+                        <td><strong>${item.goal}</strong></td>
+                        <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.instruction}">${item.instruction}</td>
+                        <td style="color: ${item.status === 'success' ? 'green' : 'red'};"><strong>${item.status.toUpperCase()}</strong></td>
+                        <td>${item.error || '-'}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                document.getElementById('test-report-body').innerHTML = `<tr><td colspan="5" style="color:red;">Could not load report: ${e.message}</td></tr>`;
+            }
+        }
+        loadTestReport();
+    </script>
 </body>
 </html>

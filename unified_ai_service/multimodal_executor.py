@@ -156,11 +156,50 @@ async def _handle_text_extract(inputs: dict[str, Any], ctx: ExecutionContext) ->
 async def _handle_ppt_generate(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
     import llm_service
     import ppt_service
+    from render_service import SlideRenderer
 
     topic = inputs.get("topic", "")
-    slides = await _await_llm_step(llm_service.generate_ppt_structure(topic), "ppt.generate")
-    output_path = os.path.join(RESULTS_DIR, f"presentation_{uuid.uuid4().hex[:8]}.pptx")
-    ppt_service.generate_ppt_file(topic, slides, output_path)
+    instruction = inputs.get("instruction", "")
+    template_path = inputs.get("template")
+    
+    template_context = ""
+    if template_path and os.path.exists(template_path):
+        if template_path.lower().endswith((".html", ".htm")):
+            with open(template_path, "r", encoding="utf-8") as f:
+                template_context = f"Use the following HTML as a style/content reference:\n{f.read()[:2000]}"
+        elif template_path.lower().endswith(".pptx"):
+            template_context = f"The user has uploaded a PPTX template. Maintain its professional tone and structural style."
+
+    # 1. Generate Slide Content and HTML
+    sys_prompt = f"""You are a master presentation designer. 
+    Generate a high-fidelity 16:9 HTML presentation about the topic. 
+    Each slide MUST be a <div class="slide"> with fixed dimensions (1920x1080px).
+    Use Tailwind CSS (via CDN) for styling. 
+    Ensure professional layouts, clear typography, and aesthetic colors.
+    {template_context}
+    Output ONLY the complete HTML content, NO markdown fences."""
+    
+    prompt = f"Create a 5-10 slide professional presentation about: {topic}. {instruction}"
+    html_content = await _await_llm_step(llm_service.generate_text(prompt, sys_prompt), "ppt.generate_html")
+    
+    # Clean up potential markdown fences
+    html_content = html_content.strip()
+    if html_content.startswith("```html"):
+        html_content = html_content[7:]
+    if html_content.endswith("```"):
+        html_content = html_content[:-3]
+    html_content = html_content.strip()
+
+    renderer = SlideRenderer(RESULTS_DIR)
+    
+    # 2. Render HTML to Images
+    image_paths = await renderer.render_html_to_images(html_content)
+    
+    # 3. Create PPTX from Images
+    output_filename = f"presentation_{uuid.uuid4().hex[:8]}.pptx"
+    output_path = os.path.join(RESULTS_DIR, output_filename)
+    renderer.create_pptx_from_images(image_paths, output_path)
+    
     return {"ppt": output_path}
 
 
@@ -168,14 +207,20 @@ async def _handle_image_generate(inputs: dict[str, Any], ctx: ExecutionContext) 
     import media_image
 
     params = inputs.copy()
-    workflow = params.pop("workflow", "zimage_turbo")
-    if workflow == "flux" and "workflow_type" in params:
-        params["workflow"] = params.pop("workflow_type")
-
+    prompt = params.pop("prompt", "")
+    base_workflow = params.pop("workflow", "zimage_turbo")
+    
+    # Special handling for FLUX to pass 'dev'/'schnell' as a parameter
+    kwargs = {}
+    w_type = params.pop("workflow_type", None)
+    if base_workflow == "flux":
+        if w_type:
+            kwargs["flux_variant"] = w_type # Passes 'dev' or 'schnell' to the .json.j2 template
+    
     path = await media_image.generate_image(
-        inputs.get("prompt", ""),
-        workflow=workflow,
-        **params,
+        prompt,
+        workflow=base_workflow,
+        **kwargs
     )
     return {"image": path}
 
@@ -386,7 +431,7 @@ def _results_url_to_path(value: str) -> str:
 
 
 async def _await_llm_step(awaitable, label: str):
-    timeout = float(os.getenv("MULTIMODAL_LLM_STEP_TIMEOUT", "20"))
+    timeout = float(os.getenv("MULTIMODAL_LLM_STEP_TIMEOUT", "60"))
     try:
         return await asyncio.wait_for(awaitable, timeout=timeout)
     except asyncio.TimeoutError as exc:
@@ -411,26 +456,50 @@ async def _handle_audio_subtitle(inputs: dict[str, Any], ctx: ExecutionContext) 
     return {"srt": path}
 
 
-ACTION_HANDLERS: dict[str, Any] = {
-    "text.generate": _handle_text_generate,
+async def _handle_video_lecture_pro(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
+    from media_pipeline import lecture_pro
+    path = await lecture_pro.generate_pro_lecture(
+        topic=inputs.get("topic", "Lecture"),
+        script=inputs.get("script", ""),
+        face_image=inputs.get("image", "")
+    )
+    return {"video": path}
+
+async def _handle_video_storyboard(inputs: dict[str, Any], ctx: ExecutionContext) -> dict[str, Any]:
+    from media_pipeline import storyboard
+    path = await storyboard.generate_storyboard_video(
+        prompt=inputs.get("prompt", ""),
+        genre=inputs.get("genre", "cinematic")
+    )
+    return {"video": path}
+
+ACTION_HANDLERS = {
     "text.extract": _handle_text_extract,
+    "text.generate": _handle_text_generate,
     "ppt.generate": _handle_ppt_generate,
+
     "image.generate": _handle_image_generate,
     "image.edit": _handle_image_edit,
     "image.control": _handle_image_control,
     "image.inpaint": _handle_image_inpaint,
     "image.analyze": _handle_image_analyze,
+
     "audio.music": _handle_audio_music,
     "audio.transcribe": _handle_audio_transcribe,
     "audio.subtitle": _handle_audio_subtitle,
     "voice.tts": _handle_voice_tts,
-    "video.generate": _handle_video_generate,
 
+    "video.generate": _handle_video_generate,
     "video.talking": _handle_video_talking,
     "video.edit": _handle_video_edit,
     "video.analyze": _handle_video_analyze,
     "video.shorts": _handle_video_shorts,
     "video.lipsync": _handle_video_lipsync,
     "video.lecture": _handle_video_lecture,
+    "video.lecture.pro": _handle_video_lecture_pro,
+    "video.storyboard": _handle_video_storyboard,
+
     "package.bundle": _handle_package_bundle,
+}
+
 }

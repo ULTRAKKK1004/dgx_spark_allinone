@@ -261,11 +261,24 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     email = request.headers.get("X-Email")
     logger.info(f"Admin Dashboard Access - Email: {email}")
     if email != ADMIN_EMAIL:
-        return templates.TemplateResponse("error_403.html", {"request": request}, status_code=403)
+        return templates.TemplateResponse(request, "error_403.html", {"request": request})
     
     users = db.query(User).all()
     logs = db.query(ActivityLog).order_by(ActivityLog.timestamp.desc()).limit(100).all()
-    return templates.TemplateResponse("admin.html", {"request": request, "users": users, "logs": logs, "admin_email": ADMIN_EMAIL})
+    levels = db.query(LevelPermission).all()
+    return templates.TemplateResponse(request, "admin.html", {"request": request, "users": users, "logs": logs, "levels": levels, "admin_email": ADMIN_EMAIL})
+
+@app.get("/admin/test_report")
+async def get_test_report(request: Request):
+    email = request.headers.get("X-Email")
+    if email != ADMIN_EMAIL:
+        return JSONResponse(status_code=403, content={"error": "Forbidden"})
+    
+    report_path = "/home/yanus/test_report.json"
+    if os.path.exists(report_path):
+        with open(report_path, "r") as f:
+            return JSONResponse(content=json.load(f))
+    return JSONResponse(content=[])
 
 @app.post("/admin/user/{user_id}/level")
 async def update_user_level(user_id: int, level: str = Form(...), db: Session = Depends(get_db)):
@@ -277,7 +290,7 @@ async def update_user_level(user_id: int, level: str = Form(...), db: Session = 
 
 @app.get("/error_403", response_class=HTMLResponse)
 async def access_denied(request: Request):
-    return templates.TemplateResponse("error_403.html", {"request": request})
+    return templates.TemplateResponse(request, "error_403.html", {"request": request})
 
 @app.get("/api/user/quota")
 async def get_user_quota(email: str, db: Session = Depends(get_db)):
